@@ -1,5 +1,6 @@
 #define SOKOL_IMPL
 #define SOKOL_GLCORE33
+#define SOKOL_NO_DEPRECATED
 #include <glad/gl.h>
 #include <sokol_gfx.h>
 
