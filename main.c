@@ -41,18 +41,24 @@ int main(int argc, char** argv)
   // setup sokol_gfx
   sg_setup(&(sg_desc){0});
 
-  // a vertex buffer
-  const float vertices[] = { 0.0f,  0.5f, 0.5f, //
-                             0.5f, -0.5f, 0.5f, //
-                            -0.5f, -0.5f, 0.5f}; //
-  const float colors[] = {1.0f, 0.0f, 0.0f, 1.0f, //
-                          0.0f, 1.0f, 0.0f, 1.0f, //
-                          0.0f, 0.0f, 1.0f, 1.0f}; //
+  // clang-format off
+  const float vertices[] = {-0.5f,  0.5f, 0.5f,
+                            -0.5f, -0.5f, 0.5f,
+                             0.5f, -0.5f, 0.5f,
+                             0.5f,  0.5f, 0.5f};
+  const float colors[] = {1.0f, 0.0f, 0.0f, 1.0f,
+                          0.0f, 1.0f, 0.0f, 1.0f,
+                          0.0f, 0.0f, 1.0f, 1.0f,
+                          1.0f, 1.0f, 0.0f, 1.0f};
+  // clang-format on
+  const uint16_t indices[] = {0, 1, 2, 0, 2, 3};
 
   sg_buffer vertex_buffer =
     sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices)});
   sg_buffer color_buffer =
     sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(colors)});
+  sg_buffer index_buffer = sg_make_buffer(&(sg_buffer_desc){
+    .type = SG_BUFFERTYPE_INDEXBUFFER, .data = SG_RANGE(indices)});
 
   sg_shader shader = sg_make_shader(&(sg_shader_desc){
     .vs.source = "#version 330\n"
@@ -73,15 +79,18 @@ int main(int argc, char** argv)
   // a pipeline state object (default render states are fine for triangle)
   sg_pipeline pip = sg_make_pipeline(&(sg_pipeline_desc){
     .shader = shader,
-    .layout = {
-      .attrs = {
-        [0] = {.format = SG_VERTEXFORMAT_FLOAT3, .buffer_index = 0},
-        [1] = {.format = SG_VERTEXFORMAT_FLOAT4, .buffer_index = 1}}}});
+    .layout =
+      {.attrs =
+         {[0] = {.format = SG_VERTEXFORMAT_FLOAT3, .buffer_index = 0},
+          [1] = {.format = SG_VERTEXFORMAT_FLOAT4, .buffer_index = 1}}},
+    .index_type = SG_INDEXTYPE_UINT16,
+  });
 
   // resource bindings
   sg_bindings bind = {
     .vertex_buffers = {[0] = vertex_buffer, [1] = color_buffer},
-    .vertex_buffer_offsets = {[0] = 0, [1] = 0}};
+    .vertex_buffer_offsets = {[0] = 0, [1] = 0},
+    .index_buffer = index_buffer};
 
   // default pass action (clear to grey)
   sg_pass_action pass_action = {0};
@@ -97,7 +106,7 @@ int main(int argc, char** argv)
     sg_begin_default_pass(&pass_action, width, height);
     sg_apply_pipeline(pip);
     sg_apply_bindings(&bind);
-    sg_draw(0, 3, 1);
+    sg_draw(0, 6, 1);
     sg_end_pass();
     sg_commit();
 
