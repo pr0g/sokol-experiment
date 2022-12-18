@@ -42,14 +42,19 @@ int main(int argc, char** argv)
   sg_setup(&(sg_desc){0});
 
   // a vertex buffer
-  const float vertices[] = {// positions            // colors
-                            0.0f,  0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 1.0f,
-                            0.5f,  -0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 1.0f,
-                            -0.5f, -0.5f, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f};
-  sg_buffer vbuf =
-    sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices)});
+  const float vertices[] = { 0.0f,  0.5f, 0.5f, //
+                             0.5f, -0.5f, 0.5f, //
+                            -0.5f, -0.5f, 0.5f}; //
+  const float colors[] = {1.0f, 0.0f, 0.0f, 1.0f, //
+                          0.0f, 1.0f, 0.0f, 1.0f, //
+                          0.0f, 0.0f, 1.0f, 1.0f}; //
 
-  sg_shader shd = sg_make_shader(&(sg_shader_desc){
+  sg_buffer vertex_buffer =
+    sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices)});
+  sg_buffer color_buffer =
+    sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(colors)});
+
+  sg_shader shader = sg_make_shader(&(sg_shader_desc){
     .vs.source = "#version 330\n"
                  "layout(location=0) in vec4 position;\n"
                  "layout(location=1) in vec4 color0;\n"
@@ -67,14 +72,16 @@ int main(int argc, char** argv)
 
   // a pipeline state object (default render states are fine for triangle)
   sg_pipeline pip = sg_make_pipeline(&(sg_pipeline_desc){
-    .shader = shd,
+    .shader = shader,
     .layout = {
       .attrs = {
-        [0].format = SG_VERTEXFORMAT_FLOAT3,
-        [1].format = SG_VERTEXFORMAT_FLOAT4}}});
+        [0] = {.format = SG_VERTEXFORMAT_FLOAT3, .buffer_index = 0},
+        [1] = {.format = SG_VERTEXFORMAT_FLOAT4, .buffer_index = 1}}}});
 
   // resource bindings
-  sg_bindings bind = {.vertex_buffers[0] = vbuf};
+  sg_bindings bind = {
+    .vertex_buffers = {[0] = vertex_buffer, [1] = color_buffer},
+    .vertex_buffer_offsets = {[0] = 0, [1] = 0}};
 
   // default pass action (clear to grey)
   sg_pass_action pass_action = {0};
