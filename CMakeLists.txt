@@ -16,7 +16,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   as-c-math
   GIT_REPOSITORY https://github.com/pr0g/as-c-math.git
-  GIT_TAG 844c217213ae011b6a538f25a39167f78c180fd6)
+  GIT_TAG 1264bdfccd914f66e152f5328cb1dc15bd1338bf)
 FetchContent_Declare(
   glad
   GIT_REPOSITORY https://github.com/Dav1dde/glad.git

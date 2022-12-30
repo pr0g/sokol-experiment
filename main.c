@@ -5,6 +5,7 @@
 #include <sokol_gfx.h>
 
 #include <SDL.h>
+#include <as-ops.h>
 
 int main(int argc, char** argv)
 {
@@ -42,10 +43,10 @@ int main(int argc, char** argv)
   sg_setup(&(sg_desc){0});
 
   // clang-format off
-  const float vertices[] = {-0.5f,  0.5f, 0.5f,
-                            -0.5f, -0.5f, 0.5f,
-                             0.5f, -0.5f, 0.5f,
-                             0.5f,  0.5f, 0.5f};
+  const float vertices[] = {-0.5f,  0.5f, 0.0f,
+                            -0.5f, -0.5f, 0.0f,
+                             0.5f, -0.5f, 0.0f,
+                             0.5f,  0.5f, 0.0f};
   const float colors[] = {1.0f, 0.0f, 0.0f, 1.0f,
                           0.0f, 1.0f, 0.0f, 1.0f,
                           0.0f, 0.0f, 1.0f, 1.0f,
@@ -60,13 +61,22 @@ int main(int argc, char** argv)
   sg_buffer index_buffer = sg_make_buffer(&(sg_buffer_desc){
     .type = SG_BUFFERTYPE_INDEXBUFFER, .data = SG_RANGE(indices)});
 
+  typedef struct vs_params_t
+  {
+    as_mat44f mvp;
+  } vs_params_t;
+
   sg_shader shader = sg_make_shader(&(sg_shader_desc){
+    .vs.uniform_blocks[0] =
+      {.size = sizeof(vs_params_t),
+       .uniforms = {[0] = {.name = "mvp", .type = SG_UNIFORMTYPE_MAT4}}},
     .vs.source = "#version 330\n"
+                 "uniform mat4 mvp;\n"
                  "layout(location=0) in vec4 position;\n"
                  "layout(location=1) in vec4 color0;\n"
                  "out vec4 color;\n"
                  "void main() {\n"
-                 "  gl_Position = position;\n"
+                 "  gl_Position = mvp * position;\n"
                  "  color = color0;\n"
                  "}\n",
     .fs.source = "#version 330\n"
@@ -84,7 +94,13 @@ int main(int argc, char** argv)
          {[0] = {.format = SG_VERTEXFORMAT_FLOAT3, .buffer_index = 0},
           [1] = {.format = SG_VERTEXFORMAT_FLOAT4, .buffer_index = 1}}},
     .index_type = SG_INDEXTYPE_UINT16,
-  });
+    .depth =
+      {
+        .compare = SG_COMPAREFUNC_LESS_EQUAL,
+        .write_enabled = true,
+      },
+    .cull_mode = SG_CULLMODE_BACK,
+    .face_winding = SG_FACEWINDING_CCW});
 
   // resource bindings
   sg_bindings bind = {
@@ -95,6 +111,7 @@ int main(int argc, char** argv)
   // default pass action (clear to grey)
   sg_pass_action pass_action = {0};
 
+  vs_params_t vs_params;
   for (bool quit = false; !quit;) {
     for (SDL_Event current_event; SDL_PollEvent(&current_event) != 0;) {
       if (current_event.type == SDL_QUIT) {
@@ -103,9 +120,21 @@ int main(int argc, char** argv)
       }
     }
 
+    const as_mat44f camera =
+      as_mat44f_translation_from_vec3f((as_vec3f){.z = 2.0f});
+    const as_mat44f view = as_mat44f_inverse(&camera);
+    const as_mat44f proj =
+      as_mat44f_perspective_projection_depth_minus_one_to_one_rh(
+        (float)width / (float)height, as_radians_from_degrees(60.0f), 0.01f,
+        100.0f);
+
+    const as_mat44f vp = as_mat44f_mul_mat44f(&proj, &view);
+    vs_params.mvp = as_mat44f_transpose(&vp);
+
     sg_begin_default_pass(&pass_action, width, height);
     sg_apply_pipeline(pip);
     sg_apply_bindings(&bind);
+    sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, &SG_RANGE(vs_params));
     sg_draw(0, 6, 1);
     sg_end_pass();
     sg_commit();
