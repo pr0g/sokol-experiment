@@ -20,10 +20,15 @@ typedef enum movement_e {
   movement_backward = 1 << 5
 } movement_e;
 
+typedef enum mode_e { mode_default_e, mode_projected_e } mode_e;
+
 camera_t g_camera = {0};
+camera_t g_last_camera = {0};
 int8_t g_movement = 0;
 as_point2i g_mouse_position = {0};
 bool g_mouse_down = false;
+mode_e g_mode = mode_default_e;
+as_mat34f g_model_transform = {0};
 
 static as_mat44f ortho_opengl_lh(
   const float l, const float r, const float b, const float t, const float n,
@@ -127,30 +132,21 @@ int main(int argc, char** argv) {
   // setup sokol_gfx
   sg_setup(&(sg_desc){0});
 
+  g_model_transform = as_mat34f_translation_from_vec3f((as_vec3f){.z = 5.0f});
+
   const as_mat44f perspective_projection =
     as_mat44f_perspective_projection_depth_minus_one_to_one_lh(
       (float)width / (float)height, as_radians_from_degrees(60.0f), 0.01f,
       100.0f);
 
   float* projected_vertices = NULL;
-  for (int v = 0; v < array_length(vertices); v += 3) {
-    const as_point3f vertex = as_mat34f_mul_point3f_v(
-      // normal
-      as_mat34f_translation_from_vec3f((as_vec3f){0}),
-      // projected
-      // as_mat34f_translation_from_vec3f((as_vec3f){.y = 1.2f, .z = 5.0f}),
-      (as_point3f){vertices[v], vertices[v + 1], vertices[v + 2]});
-    const as_point4f projected_vertex =
-      // normal
-      as_point4f_from_point3f(vertex);
-      // projected
-      // as_mat44f_project_point3f(&perspective_projection, vertex);
-    array_push(projected_vertices, projected_vertex.x);
-    array_push(projected_vertices, projected_vertex.y);
-    array_push(projected_vertices, projected_vertex.z);
-  }
+  projected_vertices =
+    array_hold(projected_vertices, array_length(vertices), sizeof(float));
 
-  sg_buffer vertex_buffer = sg_make_buffer(&(sg_buffer_desc){
+  sg_buffer default_vertex_buffer = sg_make_buffer(&(sg_buffer_desc){
+    .data = (sg_range){
+      .ptr = vertices, .size = array_length(vertices) * sizeof(float)}});
+  sg_buffer projected_vertex_buffer = sg_make_buffer(&(sg_buffer_desc){
     .data = (sg_range){
       .ptr = projected_vertices,
       .size = array_length(projected_vertices) * sizeof(float)}});
@@ -205,7 +201,7 @@ int main(int argc, char** argv) {
 
   // resource bindings
   sg_bindings bind = {
-    .vertex_buffers = {[0] = vertex_buffer, [1] = uv_buffer},
+    .vertex_buffers = {[0] = default_vertex_buffer, [1] = uv_buffer},
     .vertex_buffer_offsets = {[0] = 0, [1] = 0},
     .index_buffer = index_buffer,
     .fs_images[0] = sg_make_image(&(sg_image_desc){
@@ -228,6 +224,8 @@ int main(int argc, char** argv) {
     const double delta_time = (double)(current_counter - previous_counter)
                             / (double)SDL_GetPerformanceFrequency();
     previous_counter = current_counter;
+
+    mode_e current_mode = g_mode;
     for (SDL_Event current_event; SDL_PollEvent(&current_event) != 0;) {
       switch (current_event.type) {
         case SDL_QUIT: {
@@ -253,6 +251,42 @@ int main(int argc, char** argv) {
           g_mouse_down = false;
         } break;
         case SDL_KEYDOWN: {
+          if (current_event.key.keysym.sym == SDLK_p) {
+            if (g_mode == mode_default_e) {
+              g_mode = mode_projected_e;
+
+              sg_destroy_buffer(projected_vertex_buffer);
+
+              for (int v = 0; v < array_length(projected_vertices); v += 3) {
+                const as_point3f vertex =
+                  (as_point3f){vertices[v], vertices[v + 1], vertices[v + 2]};
+                const as_point3f model_vertex =
+                  as_mat34f_mul_point3f_v(g_model_transform, vertex);
+                const as_point3f model_view_vertex =
+                  as_mat34f_mul_point3f_v(camera_view(&g_camera), model_vertex);
+                const as_point4f projected_vertex = as_mat44f_project_point3f(
+                  &perspective_projection, model_view_vertex);
+                projected_vertices[v] = projected_vertex.x;
+                projected_vertices[v + 1] = projected_vertex.y;
+                projected_vertices[v + 2] = projected_vertex.z;
+              }
+
+              projected_vertex_buffer = sg_make_buffer(&(sg_buffer_desc){
+                .data = (sg_range){
+                  .ptr = projected_vertices,
+                  .size = array_length(projected_vertices) * sizeof(float)}});
+
+              g_last_camera = g_camera;
+              g_camera.offset = (as_vec3f){0};
+              g_camera.pivot = (as_point3f){0};
+              g_camera.pitch = 0.0f;
+              g_camera.yaw = 0.0f;
+
+            } else {
+              g_camera = g_last_camera;
+              g_mode = mode_default_e;
+            }
+          }
           if (current_event.key.keysym.sym == SDLK_ESCAPE) {
             return false;
           } else if (current_event.key.keysym.sym == SDLK_w) {
@@ -291,21 +325,26 @@ int main(int argc, char** argv) {
 
     update_movement((float)delta_time);
 
-    const as_mat34f model =
-      // normal
-      as_mat34f_translation_from_vec3f((as_vec3f){.y = 1.2f, .z = 5.0f});
-      // projected
-      // as_mat34f_translation_from_vec3f((as_vec3f){0});
+    const as_mat34f model = g_mode == mode_default_e
+                            ? g_model_transform
+                            : as_mat34f_translation_from_vec3f((as_vec3f){0});
     const as_mat44f view_model = as_mat44f_from_mat34f_v(
       as_mat34f_mul_mat34f_v(camera_view(&g_camera), model));
     const as_mat44f orthographic_projection =
       ortho_opengl_lh(-1.0f, 1.0f, -1.0f, 1.0f, 0.01f, 100.0f);
 
     vs_params.mvp = as_mat44f_transpose_v(
-      // normal
-      as_mat44f_mul_mat44f(&perspective_projection, &view_model));
-      // projected
-      // as_mat44f_mul_mat44f(&orthographic_projection, &view_model));
+      g_mode == mode_default_e
+        ? as_mat44f_mul_mat44f(&perspective_projection, &view_model)
+        : as_mat44f_mul_mat44f(&orthographic_projection, &view_model));
+
+    if (g_mode != current_mode) {
+      if (g_mode == mode_default_e) {
+        bind.vertex_buffers[0] = default_vertex_buffer;
+      } else {
+        bind.vertex_buffers[0] = projected_vertex_buffer;
+      }
+    }
 
     sg_begin_default_pass(&pass_action, width, height);
     sg_apply_pipeline(pip);
