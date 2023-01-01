@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
   }
 
   model_t model = load_obj_mesh_with_png_texture(
-    "assets/models/cube.obj", "assets/textures/redbrick.png");
+    "assets/models/f22.obj", "assets/textures/f22.png");
 
   float* vertices = NULL;
   float* uvs = NULL;
