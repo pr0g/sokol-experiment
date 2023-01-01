@@ -7,8 +7,57 @@
 #include <SDL.h>
 #include <as-ops.h>
 
-int main(int argc, char** argv)
-{
+#include "other/array.h"
+#include "other/camera.h"
+#include "other/mesh.h"
+
+typedef enum movement_e {
+  movement_up = 1 << 0,
+  movement_down = 1 << 1,
+  movement_left = 1 << 2,
+  movement_right = 1 << 3,
+  movement_forward = 1 << 4,
+  movement_backward = 1 << 5
+} movement_e;
+
+camera_t g_camera = {0};
+int8_t g_movement = 0;
+as_point2i g_mouse_position = {0};
+bool g_mouse_down = false;
+
+static void update_movement(const float delta_time) {
+  const float speed = delta_time * 10.0f;
+  if ((g_movement & movement_forward) != 0) {
+    const as_mat33f rotation = camera_rotation(&g_camera);
+    g_camera.pivot = as_point3f_add_vec3f(
+      g_camera.pivot, as_mat33f_mul_vec3f(&rotation, (as_vec3f){.z = speed}));
+  }
+  if ((g_movement & movement_left) != 0) {
+    const as_mat33f rotation = camera_rotation(&g_camera);
+    g_camera.pivot = as_point3f_add_vec3f(
+      g_camera.pivot, as_mat33f_mul_vec3f(&rotation, (as_vec3f){.x = -speed}));
+  }
+  if ((g_movement & movement_backward) != 0) {
+    const as_mat33f rotation = camera_rotation(&g_camera);
+    g_camera.pivot = as_point3f_add_vec3f(
+      g_camera.pivot, as_mat33f_mul_vec3f(&rotation, (as_vec3f){.z = -speed}));
+  }
+  if ((g_movement & movement_right) != 0) {
+    const as_mat33f rotation = camera_rotation(&g_camera);
+    g_camera.pivot = as_point3f_add_vec3f(
+      g_camera.pivot, as_mat33f_mul_vec3f(&rotation, (as_vec3f){.x = speed}));
+  }
+  if ((g_movement & movement_down) != 0) {
+    g_camera.pivot =
+      as_point3f_add_vec3f(g_camera.pivot, (as_vec3f){.y = -speed});
+  }
+  if ((g_movement & movement_up) != 0) {
+    g_camera.pivot =
+      as_point3f_add_vec3f(g_camera.pivot, (as_vec3f){.y = speed});
+  }
+}
+
+int main(int argc, char** argv) {
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
     printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
     return 1;
@@ -30,7 +79,7 @@ int main(int argc, char** argv)
     return 1;
   }
 
-  const SDL_GLContext context = SDL_GL_CreateContext(window);
+  SDL_GLContext* context = SDL_GL_CreateContext(window);
   SDL_GL_MakeCurrent(window, context);
 
   const int version = gladLoadGL((GLADloadfunc)SDL_GL_GetProcAddress);
@@ -39,51 +88,67 @@ int main(int argc, char** argv)
     return 1;
   }
 
+  model_t model = load_obj_mesh_with_png_texture(
+    "assets/models/f22.obj", "assets/textures/f22.png");
+
+  float* vertices = NULL;
+  float* uvs = NULL;
+  uint16_t* indices = NULL;
+  uint16_t index = 0;
+  const int face_count = array_length(model.mesh.faces);
+  for (int f = 0; f < face_count; f++) {
+    for (int v = 0; v < 3; v++) {
+      const int vertex_index = model.mesh.faces[f].vert_indices[v] - 1;
+      array_push(vertices, model.mesh.vertices[vertex_index].x);
+      array_push(vertices, model.mesh.vertices[vertex_index].y);
+      array_push(vertices, model.mesh.vertices[vertex_index].z);
+
+      const int uv_index = model.mesh.faces[f].uv_indices[v] - 1;
+      array_push(uvs, model.mesh.uvs[uv_index].u);
+      array_push(uvs, 1.0f - model.mesh.uvs[uv_index].v);
+
+      array_push(indices, index);
+      index++;
+    }
+  }
+
   // setup sokol_gfx
   sg_setup(&(sg_desc){0});
 
-  // clang-format off
-  const float vertices[] = {-0.5f,  0.5f, 0.0f,
-                            -0.5f, -0.5f, 0.0f,
-                             0.5f, -0.5f, 0.0f,
-                             0.5f,  0.5f, 0.0f};
-  const float colors[] = {1.0f, 0.0f, 0.0f, 1.0f,
-                          0.0f, 1.0f, 0.0f, 1.0f,
-                          0.0f, 0.0f, 1.0f, 1.0f,
-                          1.0f, 1.0f, 0.0f, 1.0f};
-  // clang-format on
-  const uint16_t indices[] = {0, 1, 2, 0, 2, 3};
-
-  sg_buffer vertex_buffer =
-    sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(vertices)});
-  sg_buffer color_buffer =
-    sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(colors)});
+  sg_buffer vertex_buffer = sg_make_buffer(&(sg_buffer_desc){
+    .data = (sg_range){
+      .ptr = vertices, .size = array_length(vertices) * sizeof(float)}});
+  sg_buffer uv_buffer = sg_make_buffer(&(sg_buffer_desc){
+    .data = (sg_range){.ptr = uvs, .size = array_length(uvs) * sizeof(float)}});
   sg_buffer index_buffer = sg_make_buffer(&(sg_buffer_desc){
-    .type = SG_BUFFERTYPE_INDEXBUFFER, .data = SG_RANGE(indices)});
+    .type = SG_BUFFERTYPE_INDEXBUFFER,
+    .data = (sg_range){
+      .ptr = indices, .size = array_length(indices) * sizeof(uint16_t)}});
 
-  typedef struct vs_params_t
-  {
+  typedef struct vs_params_t {
     as_mat44f mvp;
   } vs_params_t;
 
   sg_shader shader = sg_make_shader(&(sg_shader_desc){
+    .fs.images[0].image_type = SG_IMAGETYPE_2D,
     .vs.uniform_blocks[0] =
       {.size = sizeof(vs_params_t),
        .uniforms = {[0] = {.name = "mvp", .type = SG_UNIFORMTYPE_MAT4}}},
     .vs.source = "#version 330\n"
                  "uniform mat4 mvp;\n"
                  "layout(location=0) in vec4 position;\n"
-                 "layout(location=1) in vec4 color0;\n"
-                 "out vec4 color;\n"
+                 "layout(location=1) in vec2 uv0;\n"
+                 "out vec2 uv;\n"
                  "void main() {\n"
                  "  gl_Position = mvp * position;\n"
-                 "  color = color0;\n"
+                 "  uv = uv0;\n"
                  "}\n",
     .fs.source = "#version 330\n"
-                 "in vec4 color;\n"
+                 "in vec2 uv;\n"
+                 "uniform sampler2D the_texture;\n"
                  "out vec4 frag_color;\n"
                  "void main() {\n"
-                 "  frag_color = color;\n"
+                 "  frag_color = texture(the_texture, uv);\n"
                  "}\n"});
 
   // a pipeline state object (default render states are fine for triangle)
@@ -92,7 +157,7 @@ int main(int argc, char** argv)
     .layout =
       {.attrs =
          {[0] = {.format = SG_VERTEXFORMAT_FLOAT3, .buffer_index = 0},
-          [1] = {.format = SG_VERTEXFORMAT_FLOAT4, .buffer_index = 1}}},
+          [1] = {.format = SG_VERTEXFORMAT_FLOAT2, .buffer_index = 1}}},
     .index_type = SG_INDEXTYPE_UINT16,
     .depth =
       {
@@ -100,42 +165,113 @@ int main(int argc, char** argv)
         .write_enabled = true,
       },
     .cull_mode = SG_CULLMODE_BACK,
-    .face_winding = SG_FACEWINDING_CCW});
+    .face_winding = SG_FACEWINDING_CW});
 
   // resource bindings
   sg_bindings bind = {
-    .vertex_buffers = {[0] = vertex_buffer, [1] = color_buffer},
+    .vertex_buffers = {[0] = vertex_buffer, [1] = uv_buffer},
     .vertex_buffer_offsets = {[0] = 0, [1] = 0},
-    .index_buffer = index_buffer};
+    .index_buffer = index_buffer,
+    .fs_images[0] = sg_make_image(&(sg_image_desc){
+      .width = model.texture.width,
+      .height = model.texture.height,
+      .data.subimage[0][0] =
+        (sg_range){
+          .ptr = model.texture.color_buffer,
+          .size =
+            model.texture.width * model.texture.height * sizeof(uint32_t)},
+      .label = "model-texture"})};
 
   // default pass action (clear to grey)
   sg_pass_action pass_action = {0};
 
   vs_params_t vs_params;
+  uint64_t previous_counter = 0;
   for (bool quit = false; !quit;) {
+    const uint64_t current_counter = SDL_GetPerformanceCounter();
+    const double delta_time = (double)(current_counter - previous_counter)
+                            / (double)SDL_GetPerformanceFrequency();
+    previous_counter = current_counter;
     for (SDL_Event current_event; SDL_PollEvent(&current_event) != 0;) {
-      if (current_event.type == SDL_QUIT) {
-        quit = true;
-        break;
+      switch (current_event.type) {
+        case SDL_QUIT: {
+          quit = true;
+        } break;
+        case SDL_MOUSEMOTION: {
+          const SDL_MouseMotionEvent* mouse_motion_event =
+            (const SDL_MouseMotionEvent*)&current_event;
+          const as_point2i previous_mouse_position = g_mouse_position;
+          g_mouse_position = (as_point2i){
+            .x = mouse_motion_event->x, .y = mouse_motion_event->y};
+          if (g_mouse_down) {
+            const as_vec2i mouse_delta =
+              as_point2i_sub_point2i(g_mouse_position, previous_mouse_position);
+            g_camera.pitch += (float)mouse_delta.y * 0.01f;
+            g_camera.yaw += (float)mouse_delta.x * 0.01f;
+          }
+        } break;
+        case SDL_MOUSEBUTTONDOWN: {
+          g_mouse_down = true;
+        } break;
+        case SDL_MOUSEBUTTONUP: {
+          g_mouse_down = false;
+        } break;
+        case SDL_KEYDOWN: {
+          if (current_event.key.keysym.sym == SDLK_ESCAPE) {
+            return false;
+          } else if (current_event.key.keysym.sym == SDLK_w) {
+            g_movement |= movement_forward;
+          } else if (current_event.key.keysym.sym == SDLK_a) {
+            g_movement |= movement_left;
+          } else if (current_event.key.keysym.sym == SDLK_s) {
+            g_movement |= movement_backward;
+          } else if (current_event.key.keysym.sym == SDLK_d) {
+            g_movement |= movement_right;
+          } else if (current_event.key.keysym.sym == SDLK_q) {
+            g_movement |= movement_down;
+          } else if (current_event.key.keysym.sym == SDLK_e) {
+            g_movement |= movement_up;
+          }
+        } break;
+        case SDL_KEYUP: {
+          if (current_event.key.keysym.sym == SDLK_w) {
+            g_movement &= ~movement_forward;
+          } else if (current_event.key.keysym.sym == SDLK_a) {
+            g_movement &= ~movement_left;
+          } else if (current_event.key.keysym.sym == SDLK_s) {
+            g_movement &= ~movement_backward;
+          } else if (current_event.key.keysym.sym == SDLK_d) {
+            g_movement &= ~movement_right;
+          } else if (current_event.key.keysym.sym == SDLK_q) {
+            g_movement &= ~movement_down;
+          } else if (current_event.key.keysym.sym == SDLK_e) {
+            g_movement &= ~movement_up;
+          }
+        } break;
+        default:
+          break;
       }
     }
 
-    const as_mat44f camera =
-      as_mat44f_translation_from_vec3f((as_vec3f){.z = 2.0f});
-    const as_mat44f view = as_mat44f_inverse(&camera);
+    update_movement((float)delta_time);
+
+    const as_mat34f model =
+      as_mat34f_translation_from_vec3f((as_vec3f){.z = 5.0f});
+    const as_mat44f model_view = as_mat44f_from_mat34f_v(
+      as_mat34f_mul_mat34f_v(camera_view(&g_camera), model));
     const as_mat44f proj =
-      as_mat44f_perspective_projection_depth_minus_one_to_one_rh(
+      as_mat44f_perspective_projection_depth_minus_one_to_one_lh(
         (float)width / (float)height, as_radians_from_degrees(60.0f), 0.01f,
         100.0f);
 
-    const as_mat44f vp = as_mat44f_mul_mat44f(&proj, &view);
-    vs_params.mvp = as_mat44f_transpose(&vp);
+    const as_mat44f mvp = as_mat44f_mul_mat44f(&proj, &model_view);
+    vs_params.mvp = as_mat44f_transpose(&mvp);
 
     sg_begin_default_pass(&pass_action, width, height);
     sg_apply_pipeline(pip);
     sg_apply_bindings(&bind);
     sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, &SG_RANGE(vs_params));
-    sg_draw(0, 6, 1);
+    sg_draw(0, array_length(indices), 1);
     sg_end_pass();
     sg_commit();
 

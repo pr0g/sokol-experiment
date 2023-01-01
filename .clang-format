@@ -6,14 +6,12 @@ AlwaysBreakAfterDefinitionReturnType: None
 AlwaysBreakAfterReturnType: None
 AlwaysBreakTemplateDeclarations: Yes
 AllowAllArgumentsOnNextLine: true
+BinPackArguments: true
+BinPackParameters: true
 BreakBeforeBraces: Custom
 BraceWrapping:
-    AfterNamespace: true
-    AfterStruct: true
-    AfterClass: true
-    AfterEnum: true
-    AfterFunction: true
     SplitEmptyFunction: true
+    SplitEmptyRecord: true
 ColumnLimit: 80
 IndentWidth: 2
 ContinuationIndentWidth: 2
@@ -23,13 +21,13 @@ PenaltyReturnTypeOnItsOwnLine: 1000000
 PenaltyExcessCharacter: 1000000
 PointerAlignment: Left
 SpaceAfterTemplateKeyword: false
-Standard: c++17
 TabWidth: 2
 Cpp11BracedListStyle: true
 IndentCaseLabels: true
 SortIncludes: true
 IncludeBlocks: Preserve
 FixNamespaceComments: true
+NamespaceIndentation: All
 AlignOperands: AlignAfterOperator
 AlignTrailingComments: false
 BreakBeforeBinaryOperators: NonAssignment

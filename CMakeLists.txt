@@ -16,20 +16,27 @@ FetchContent_Declare(
 FetchContent_Declare(
   as-c-math
   GIT_REPOSITORY https://github.com/pr0g/as-c-math.git
-  GIT_TAG 1264bdfccd914f66e152f5328cb1dc15bd1338bf)
+  GIT_TAG b5074f0b48ee01f5303cc3dae9e7bb55dee9ec7b)
 FetchContent_Declare(
   glad
   GIT_REPOSITORY https://github.com/Dav1dde/glad.git
   GIT_TAG b1051403cf81b984f9fc11cc5916adb5afd34766
   SOURCE_SUBDIR cmake)
+FetchContent_Declare(
+  upng
+  GIT_REPOSITORY https://github.com/pr0g/upng.git
+  GIT_TAG edb284b15fc3c37260d27182e4cf3a366c1734bf)
 
-FetchContent_MakeAvailable(glad SDL2 as-c-math sokol)
+FetchContent_MakeAvailable(glad SDL2 as-c-math sokol upng)
 
 list(APPEND CMAKE_MODULE_PATH ${glad_SOURCE_DIR})
 
 glad_add_library(glad_gl_core_33 REPRODUCIBLE API gl:core=3.3)
 
 add_executable(${PROJECT_NAME})
-target_sources(${PROJECT_NAME} PRIVATE main.c)
-target_link_libraries(${PROJECT_NAME} PRIVATE SDL2::SDL2 SDL2::SDL2main
-                                              as-c-math sokol glad_gl_core_33)
+target_sources(
+  ${PROJECT_NAME} PRIVATE main.c other/mesh.c other/triangle.c other/texture.c
+                          other/array.c other/camera.c)
+target_link_libraries(
+  ${PROJECT_NAME} PRIVATE SDL2::SDL2 SDL2::SDL2main as-c-math sokol
+                          glad_gl_core_33 upng)
