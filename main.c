@@ -257,15 +257,15 @@ int main(int argc, char** argv) {
 
     const as_mat34f model =
       as_mat34f_translation_from_vec3f((as_vec3f){.z = 5.0f});
-    const as_mat44f model_view = as_mat44f_from_mat34f_v(
+    const as_mat44f view_model = as_mat44f_from_mat34f_v(
       as_mat34f_mul_mat34f_v(camera_view(&g_camera), model));
     const as_mat44f proj =
       as_mat44f_perspective_projection_depth_minus_one_to_one_lh(
         (float)width / (float)height, as_radians_from_degrees(60.0f), 0.01f,
         100.0f);
 
-    const as_mat44f mvp = as_mat44f_mul_mat44f(&proj, &model_view);
-    vs_params.mvp = as_mat44f_transpose(&mvp);
+    vs_params.mvp =
+      as_mat44f_transpose_v(as_mat44f_mul_mat44f(&proj, &view_model));
 
     sg_begin_default_pass(&pass_action, width, height);
     sg_apply_pipeline(pip);
