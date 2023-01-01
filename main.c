@@ -136,15 +136,15 @@ int main(int argc, char** argv) {
   for (int v = 0; v < array_length(vertices); v += 3) {
     const as_point3f vertex = as_mat34f_mul_point3f_v(
       // normal
-      // as_mat34f_translation_from_vec3f((as_vec3f){0}),
+      as_mat34f_translation_from_vec3f((as_vec3f){0}),
       // projected
-      as_mat34f_translation_from_vec3f((as_vec3f){.y = 1.2f, .z = 5.0f}),
+      // as_mat34f_translation_from_vec3f((as_vec3f){.y = 1.2f, .z = 5.0f}),
       (as_point3f){vertices[v], vertices[v + 1], vertices[v + 2]});
     const as_point4f projected_vertex =
       // normal
-      // as_point4f_from_point3f(vertex);
+      as_point4f_from_point3f(vertex);
       // projected
-      as_mat44f_project_point3f(&perspective_projection, vertex);
+      // as_mat44f_project_point3f(&perspective_projection, vertex);
     array_push(projected_vertices, projected_vertex.x);
     array_push(projected_vertices, projected_vertex.y);
     array_push(projected_vertices, projected_vertex.z);
@@ -293,9 +293,9 @@ int main(int argc, char** argv) {
 
     const as_mat34f model =
       // normal
-      // as_mat34f_translation_from_vec3f((as_vec3f){.y = 1.2f, .z = 5.0f});
+      as_mat34f_translation_from_vec3f((as_vec3f){.y = 1.2f, .z = 5.0f});
       // projected
-      as_mat34f_translation_from_vec3f((as_vec3f){0});
+      // as_mat34f_translation_from_vec3f((as_vec3f){0});
     const as_mat44f view_model = as_mat44f_from_mat34f_v(
       as_mat34f_mul_mat34f_v(camera_view(&g_camera), model));
     const as_mat44f orthographic_projection =
@@ -303,9 +303,9 @@ int main(int argc, char** argv) {
 
     vs_params.mvp = as_mat44f_transpose_v(
       // normal
-      // as_mat44f_mul_mat44f(&perspective_projection, &view_model));
+      as_mat44f_mul_mat44f(&perspective_projection, &view_model));
       // projected
-      as_mat44f_mul_mat44f(&orthographic_projection, &view_model));
+      // as_mat44f_mul_mat44f(&orthographic_projection, &view_model));
 
     sg_begin_default_pass(&pass_action, width, height);
     sg_apply_pipeline(pip);
