@@ -25,6 +25,18 @@ int8_t g_movement = 0;
 as_point2i g_mouse_position = {0};
 bool g_mouse_down = false;
 
+static as_mat44f ortho_opengl_lh(
+  const float l, const float r, const float b, const float t, const float n,
+  const float f) {
+  const float x = 1.0f / (r - l);
+  const float y = 1.0f / (t - b);
+  const float z = 1.0f / (f - n);
+
+  return as_mat44f_transpose_v((as_mat44f){
+    2.0f * x, 0.0f, 0.0f, 0.0f, 0.0f, 2.0f * y, 0.0f, 0.0f, 0.0f, 0.0f,
+    2.0f * z, 0.0f, -(l + r) * x, -(b + t) * y, -(n + f) * z, 1.0f});
+}
+
 static void update_movement(const float delta_time) {
   const float speed = delta_time * 10.0f;
   if ((g_movement & movement_forward) != 0) {
@@ -115,9 +127,33 @@ int main(int argc, char** argv) {
   // setup sokol_gfx
   sg_setup(&(sg_desc){0});
 
+  const as_mat44f perspective_projection =
+    as_mat44f_perspective_projection_depth_minus_one_to_one_lh(
+      (float)width / (float)height, as_radians_from_degrees(60.0f), 0.01f,
+      100.0f);
+
+  float* projected_vertices = NULL;
+  for (int v = 0; v < array_length(vertices); v += 3) {
+    const as_point3f vertex = as_mat34f_mul_point3f_v(
+      // normal
+      // as_mat34f_translation_from_vec3f((as_vec3f){0}),
+      // projected
+      as_mat34f_translation_from_vec3f((as_vec3f){.y = 1.2f, .z = 5.0f}),
+      (as_point3f){vertices[v], vertices[v + 1], vertices[v + 2]});
+    const as_point4f projected_vertex =
+      // normal
+      // as_point4f_from_point3f(vertex);
+      // projected
+      as_mat44f_project_point3f(&perspective_projection, vertex);
+    array_push(projected_vertices, projected_vertex.x);
+    array_push(projected_vertices, projected_vertex.y);
+    array_push(projected_vertices, projected_vertex.z);
+  }
+
   sg_buffer vertex_buffer = sg_make_buffer(&(sg_buffer_desc){
     .data = (sg_range){
-      .ptr = vertices, .size = array_length(vertices) * sizeof(float)}});
+      .ptr = projected_vertices,
+      .size = array_length(projected_vertices) * sizeof(float)}});
   sg_buffer uv_buffer = sg_make_buffer(&(sg_buffer_desc){
     .data = (sg_range){.ptr = uvs, .size = array_length(uvs) * sizeof(float)}});
   sg_buffer index_buffer = sg_make_buffer(&(sg_buffer_desc){
@@ -256,16 +292,20 @@ int main(int argc, char** argv) {
     update_movement((float)delta_time);
 
     const as_mat34f model =
-      as_mat34f_translation_from_vec3f((as_vec3f){.z = 5.0f});
+      // normal
+      // as_mat34f_translation_from_vec3f((as_vec3f){.y = 1.2f, .z = 5.0f});
+      // projected
+      as_mat34f_translation_from_vec3f((as_vec3f){0});
     const as_mat44f view_model = as_mat44f_from_mat34f_v(
       as_mat34f_mul_mat34f_v(camera_view(&g_camera), model));
-    const as_mat44f proj =
-      as_mat44f_perspective_projection_depth_minus_one_to_one_lh(
-        (float)width / (float)height, as_radians_from_degrees(60.0f), 0.01f,
-        100.0f);
+    const as_mat44f orthographic_projection =
+      ortho_opengl_lh(-1.0f, 1.0f, -1.0f, 1.0f, 0.01f, 100.0f);
 
-    vs_params.mvp =
-      as_mat44f_transpose_v(as_mat44f_mul_mat44f(&proj, &view_model));
+    vs_params.mvp = as_mat44f_transpose_v(
+      // normal
+      // as_mat44f_mul_mat44f(&perspective_projection, &view_model));
+      // projected
+      as_mat44f_mul_mat44f(&orthographic_projection, &view_model));
 
     sg_begin_default_pass(&pass_action, width, height);
     sg_apply_pipeline(pip);
