@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
   }
 
   model_t model = load_obj_mesh_with_png_texture(
-    "assets/models/f22.obj", "assets/textures/f22.png");
+    "assets/models/cube.obj", "assets/textures/redbrick.png");
 
   float* vertices = NULL;
   float* uvs = NULL;
@@ -143,6 +143,10 @@ int main(int argc, char** argv) {
   projected_vertices =
     array_hold(projected_vertices, array_length(vertices), sizeof(float));
 
+  float* vertex_depth_recips = NULL;
+  vertex_depth_recips =
+    array_hold(vertex_depth_recips, array_length(vertices) / 3, sizeof(float));
+
   sg_buffer default_vertex_buffer = sg_make_buffer(&(sg_buffer_desc){
     .data = (sg_range){
       .ptr = vertices, .size = array_length(vertices) * sizeof(float)}});
@@ -152,6 +156,10 @@ int main(int argc, char** argv) {
       .size = array_length(projected_vertices) * sizeof(float)}});
   sg_buffer uv_buffer = sg_make_buffer(&(sg_buffer_desc){
     .data = (sg_range){.ptr = uvs, .size = array_length(uvs) * sizeof(float)}});
+  sg_buffer vertex_depth_recip_buffer = sg_make_buffer(&(sg_buffer_desc){
+    .data = (sg_range){
+      .ptr = vertex_depth_recips,
+      .size = array_length(vertex_depth_recips) * sizeof(float)}});
   sg_buffer index_buffer = sg_make_buffer(&(sg_buffer_desc){
     .type = SG_BUFFERTYPE_INDEXBUFFER,
     .data = (sg_range){
@@ -170,17 +178,21 @@ int main(int argc, char** argv) {
                  "uniform mat4 mvp;\n"
                  "layout(location=0) in vec4 position;\n"
                  "layout(location=1) in vec2 uv0;\n"
+                 "layout(location=2) in float depth_recip0;\n"
                  "out vec2 uv;\n"
+                 "out float depth_recip;\n"
                  "void main() {\n"
                  "  gl_Position = mvp * position;\n"
-                 "  uv = uv0;\n"
+                 "  uv = uv0 * depth_recip0;\n"
+                 "  depth_recip = depth_recip0;\n"
                  "}\n",
     .fs.source = "#version 330\n"
                  "in vec2 uv;\n"
+                 "in float depth_recip;"
                  "uniform sampler2D the_texture;\n"
                  "out vec4 frag_color;\n"
                  "void main() {\n"
-                 "  frag_color = texture(the_texture, uv);\n"
+                 "  frag_color = texture(the_texture, uv / depth_recip);\n"
                  "}\n"});
 
   // a pipeline state object (default render states are fine for triangle)
@@ -189,7 +201,8 @@ int main(int argc, char** argv) {
     .layout =
       {.attrs =
          {[0] = {.format = SG_VERTEXFORMAT_FLOAT3, .buffer_index = 0},
-          [1] = {.format = SG_VERTEXFORMAT_FLOAT2, .buffer_index = 1}}},
+          [1] = {.format = SG_VERTEXFORMAT_FLOAT2, .buffer_index = 1},
+          [2] = {.format = SG_VERTEXFORMAT_FLOAT, .buffer_index = 2}}},
     .index_type = SG_INDEXTYPE_UINT16,
     .depth =
       {
@@ -201,8 +214,11 @@ int main(int argc, char** argv) {
 
   // resource bindings
   sg_bindings bind = {
-    .vertex_buffers = {[0] = default_vertex_buffer, [1] = uv_buffer},
-    .vertex_buffer_offsets = {[0] = 0, [1] = 0},
+    .vertex_buffers =
+      {[0] = default_vertex_buffer,
+       [1] = uv_buffer,
+       [2] = vertex_depth_recip_buffer},
+    .vertex_buffer_offsets = {[0] = 0, [1] = 0, [2] = 0},
     .index_buffer = index_buffer,
     .fs_images[0] = sg_make_image(&(sg_image_desc){
       .width = model.texture.width,
@@ -256,6 +272,7 @@ int main(int argc, char** argv) {
               g_mode = mode_projected_e;
 
               sg_destroy_buffer(projected_vertex_buffer);
+              sg_destroy_buffer(vertex_depth_recip_buffer);
 
               for (int v = 0; v < array_length(projected_vertices); v += 3) {
                 const as_point3f vertex =
@@ -275,6 +292,22 @@ int main(int argc, char** argv) {
                 .data = (sg_range){
                   .ptr = projected_vertices,
                   .size = array_length(projected_vertices) * sizeof(float)}});
+
+              for (int v = 0, d = 0; v < array_length(projected_vertices);
+                   v += 3, d++) {
+                const as_point3f vertex =
+                  (as_point3f){vertices[v], vertices[v + 1], vertices[v + 2]};
+                const as_point3f model_vertex =
+                  as_mat34f_mul_point3f_v(g_model_transform, vertex);
+                const as_point3f model_view_vertex =
+                  as_mat34f_mul_point3f_v(camera_view(&g_camera), model_vertex);
+                vertex_depth_recips[d] = 1.0f / model_view_vertex.z;
+              }
+
+              vertex_depth_recip_buffer = sg_make_buffer(&(sg_buffer_desc){
+                .data = (sg_range){
+                  .ptr = vertex_depth_recips,
+                  .size = array_length(vertex_depth_recips) * sizeof(float)}});
 
               g_last_camera = g_camera;
               g_camera.offset = (as_vec3f){0};
@@ -341,8 +374,10 @@ int main(int argc, char** argv) {
     if (g_mode != current_mode) {
       if (g_mode == mode_default_e) {
         bind.vertex_buffers[0] = default_vertex_buffer;
+        bind.vertex_buffers[2] = vertex_depth_recip_buffer;
       } else {
         bind.vertex_buffers[0] = projected_vertex_buffer;
+        bind.vertex_buffers[2] = vertex_depth_recip_buffer;
       }
     }
 
