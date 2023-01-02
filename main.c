@@ -35,7 +35,7 @@ view_e g_view = view_orthographic;
 as_mat34f g_model_transform = {0};
 
 static void update_movement(const float delta_time) {
-  const float speed = delta_time * 10.0f;
+  const float speed = delta_time * 4.0f;
   if ((g_movement & movement_forward) != 0) {
     const as_mat33f rotation = camera_rotation(&g_camera);
     g_camera.pivot = as_point3f_add_vec3f(
@@ -419,8 +419,8 @@ int main(int argc, char** argv) {
           if (g_mouse_down) {
             const as_vec2i mouse_delta =
               as_point2i_sub_point2i(g_mouse_position, previous_mouse_position);
-            g_camera.pitch += (float)mouse_delta.y * 0.01f;
-            g_camera.yaw += (float)mouse_delta.x * 0.01f;
+            g_camera.pitch += (float)mouse_delta.y * 0.005f;
+            g_camera.yaw += (float)mouse_delta.x * 0.005f;
           }
         } break;
         case SDL_MOUSEBUTTONDOWN: {
@@ -484,6 +484,8 @@ int main(int argc, char** argv) {
             } else {
               g_camera = g_last_camera;
               g_mode = mode_standard;
+              // reset view in projected mode
+              g_view = view_orthographic;
             }
           }
           if (current_event.key.keysym.sym == SDLK_v) {
@@ -575,6 +577,6 @@ int main(int argc, char** argv) {
   sg_shutdown();
   SDL_DestroyWindow(window);
   SDL_Quit();
-  
+
   return 0;
 }
