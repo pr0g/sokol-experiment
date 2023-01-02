@@ -30,18 +30,6 @@ bool g_mouse_down = false;
 mode_e g_mode = mode_default_e;
 as_mat34f g_model_transform = {0};
 
-static as_mat44f ortho_opengl_lh(
-  const float l, const float r, const float b, const float t, const float n,
-  const float f) {
-  const float x = 1.0f / (r - l);
-  const float y = 1.0f / (t - b);
-  const float z = 1.0f / (f - n);
-
-  return as_mat44f_transpose_v((as_mat44f){
-    2.0f * x, 0.0f, 0.0f, 0.0f, 0.0f, 2.0f * y, 0.0f, 0.0f, 0.0f, 0.0f,
-    2.0f * z, 0.0f, -(l + r) * x, -(b + t) * y, -(n + f) * z, 1.0f});
-}
-
 static void update_movement(const float delta_time) {
   const float speed = delta_time * 10.0f;
   if ((g_movement & movement_forward) != 0) {
@@ -419,7 +407,8 @@ int main(int argc, char** argv) {
     const as_mat44f view_model = as_mat44f_from_mat34f_v(
       as_mat34f_mul_mat34f_v(camera_view(&g_camera), model));
     const as_mat44f orthographic_projection =
-      ortho_opengl_lh(-1.0f, 1.0f, -1.0f, 1.0f, 0.01f, 100.0f);
+      as_mat44f_orthographic_projection_depth_minus_one_to_one_lh(
+        -1.0f, 1.0f, -1.0f, 1.0f, 0.01f, 100.0f);
 
     vs_params.mvp = as_mat44f_transpose_v(
       g_mode == mode_default_e
