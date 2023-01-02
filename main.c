@@ -20,14 +20,18 @@ typedef enum movement_e {
   movement_backward = 1 << 5
 } movement_e;
 
-typedef enum mode_e { mode_default_e, mode_projected_e } mode_e;
+// projection to use when in projected mode
+typedef enum view_e { view_perspective, view_orthographic } view_e;
+// mode of rendering
+typedef enum mode_e { mode_default, mode_projected } mode_e;
 
 camera_t g_camera = {0};
 camera_t g_last_camera = {0};
 int8_t g_movement = 0;
 as_point2i g_mouse_position = {0};
 bool g_mouse_down = false;
-mode_e g_mode = mode_default_e;
+mode_e g_mode = mode_default;
+view_e g_view = view_orthographic;
 as_mat34f g_model_transform = {0};
 
 static void update_movement(const float delta_time) {
@@ -96,6 +100,7 @@ int main(int argc, char** argv) {
   model_t model = load_obj_mesh_with_png_texture(
     "assets/models/f22.obj", "assets/textures/f22.png");
 
+  // setup model data
   float* vertices = NULL;
   float* uvs = NULL;
   uint16_t* indices = NULL;
@@ -134,6 +139,84 @@ int main(int argc, char** argv) {
   float* vertex_depth_recips = NULL;
   vertex_depth_recips =
     array_hold(vertex_depth_recips, array_length(vertices) / 3, sizeof(float));
+
+  // clang-format off
+  const float lines[] = {-1.0f, -1.0f, -1.0f,
+                          1.0f, -1.0f, -1.0f,
+                          1.0f, -1.0f, -1.0f,
+                          1.0f,  1.0f, -1.0f,
+                          1.0f,  1.0f, -1.0f,
+                         -1.0f,  1.0f, -1.0f,
+                         -1.0f,  1.0f, -1.0f,
+                         -1.0f, -1.0f, -1.0f,
+
+                         -1.0f, -1.0f, 1.0f,
+                          1.0f, -1.0f, 1.0f,
+                          1.0f, -1.0f, 1.0f,
+                          1.0f,  1.0f, 1.0f,
+                          1.0f,  1.0f, 1.0f,
+                         -1.0f,  1.0f, 1.0f,
+                         -1.0f,  1.0f, 1.0f,
+                         -1.0f, -1.0f, 1.0f,
+
+                         -1.0f, 1.0f, -1.0f,
+                          1.0f, 1.0f, -1.0f,
+                          1.0f, 1.0f, -1.0f,
+                          1.0f, 1.0f,  1.0f,
+                          1.0f, 1.0f,  1.0f,
+                         -1.0f, 1.0f,  1.0f,
+                         -1.0f, 1.0f,  1.0f,
+                         -1.0f, 1.0f, -1.0f,
+
+                         -1.0f, -1.0f, -1.0f,
+                          1.0f, -1.0f, -1.0f,
+                          1.0f, -1.0f, -1.0f,
+                          1.0f, -1.0f,  1.0f,
+                          1.0f, -1.0f,  1.0f,
+                         -1.0f, -1.0f,  1.0f,
+                         -1.0f, -1.0f,  1.0f,
+                         -1.0f, -1.0f, -1.0f };
+  const uint32_t line_colors[] = {0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff,
+                                  0xffffffff};
+  // clang-format on
+
+  sg_buffer line_buffer =
+    sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(lines)});
+  sg_buffer line_color_buffer =
+    sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(line_colors)});
 
   sg_buffer default_vertex_buffer = sg_make_buffer(&(sg_buffer_desc){
     .data = (sg_range){
@@ -205,6 +288,26 @@ int main(int argc, char** argv) {
                  "  frag_color = texture(the_texture, uv);\n"
                  "}\n"});
 
+  sg_shader shader_line = sg_make_shader(&(sg_shader_desc){
+    .vs.uniform_blocks[0] =
+      {.size = sizeof(vs_params_t),
+       .uniforms = {[0] = {.name = "mvp", .type = SG_UNIFORMTYPE_MAT4}}},
+    .vs.source = "#version 330\n"
+                 "uniform mat4 mvp;\n"
+                 "layout(location=0) in vec4 position;\n"
+                 "layout(location=1) in vec4 color0;\n"
+                 "out vec4 color;\n"
+                 "void main() {\n"
+                 "  gl_Position = mvp * position;\n"
+                 "  color = color0;\n"
+                 "}\n",
+    .fs.source = "#version 330\n"
+                 "in vec4 color;\n"
+                 "out vec4 frag_color;\n"
+                 "void main() {\n"
+                 "  frag_color = color;\n"
+                 "}\n"});
+
   // a pipeline state object (default render states are fine for triangle)
   sg_pipeline pip_projected = sg_make_pipeline(&(sg_pipeline_desc){
     .shader = shader_projected,
@@ -238,6 +341,19 @@ int main(int argc, char** argv) {
     .cull_mode = SG_CULLMODE_BACK,
     .face_winding = SG_FACEWINDING_CW});
 
+  sg_pipeline pip_line = sg_make_pipeline(&(sg_pipeline_desc){
+    .shader = shader_line,
+    .layout =
+      {.attrs =
+         {[0] = {.format = SG_VERTEXFORMAT_FLOAT3, .buffer_index = 0},
+          [1] = {.format = SG_VERTEXFORMAT_UBYTE4N, .buffer_index = 1}}},
+    .depth =
+      {
+        .compare = SG_COMPAREFUNC_LESS_EQUAL,
+        .write_enabled = true,
+      },
+    .primitive_type = SG_PRIMITIVETYPE_LINES});
+
   // resource bindings
   sg_bindings bind_projected = {
     .vertex_buffers =
@@ -269,6 +385,10 @@ int main(int argc, char** argv) {
           .size =
             model.texture.width * model.texture.height * sizeof(uint32_t)},
       .label = "model-texture"})};
+
+  sg_bindings bind_line = {
+    .vertex_buffers = {[0] = line_buffer, [1] = line_color_buffer},
+    .vertex_buffer_offsets = {[0] = 0, [1] = 0}};
 
   // default pass action (clear to grey)
   sg_pass_action pass_action = {0};
@@ -308,8 +428,8 @@ int main(int argc, char** argv) {
         } break;
         case SDL_KEYDOWN: {
           if (current_event.key.keysym.sym == SDLK_p) {
-            if (g_mode == mode_default_e) {
-              g_mode = mode_projected_e;
+            if (g_mode == mode_default) {
+              g_mode = mode_projected;
 
               sg_destroy_buffer(projected_vertex_buffer);
               sg_destroy_buffer(vertex_depth_recip_buffer);
@@ -360,7 +480,14 @@ int main(int argc, char** argv) {
 
             } else {
               g_camera = g_last_camera;
-              g_mode = mode_default_e;
+              g_mode = mode_default;
+            }
+          }
+          if (current_event.key.keysym.sym == SDLK_v) {
+            if (g_view == view_orthographic) {
+              g_view = view_perspective;
+            } else {
+              g_view = view_orthographic;
             }
           }
           if (current_event.key.keysym.sym == SDLK_ESCAPE) {
@@ -401,7 +528,7 @@ int main(int argc, char** argv) {
 
     update_movement((float)delta_time);
 
-    const as_mat34f model = g_mode == mode_default_e
+    const as_mat34f model = g_mode == mode_default
                             ? g_model_transform
                             : as_mat34f_translation_from_vec3f((as_vec3f){0});
     const as_mat44f view_model = as_mat44f_from_mat34f_v(
@@ -411,19 +538,30 @@ int main(int argc, char** argv) {
         -1.0f, 1.0f, -1.0f, 1.0f, 0.01f, 100.0f);
 
     vs_params.mvp = as_mat44f_transpose_v(
-      g_mode == mode_default_e
+      g_mode == mode_default
         ? as_mat44f_mul_mat44f(&perspective_projection, &view_model)
-        : as_mat44f_mul_mat44f(&orthographic_projection, &view_model));
+      : g_view == view_orthographic
+        ? as_mat44f_mul_mat44f(&orthographic_projection, &view_model)
+        : as_mat44f_mul_mat44f(&perspective_projection, &view_model));
 
     sg_bindings* bind =
-      g_mode == mode_default_e ? &bind_default : &bind_projected;
-    sg_pipeline pip = g_mode == mode_default_e ? pip_default : pip_projected;
+      g_mode == mode_default ? &bind_default : &bind_projected;
+    sg_pipeline pip = g_mode == mode_default ? pip_default : pip_projected;
 
     sg_begin_default_pass(&pass_action, width, height);
     sg_apply_pipeline(pip);
     sg_apply_bindings(bind);
     sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, &SG_RANGE(vs_params));
     sg_draw(0, array_length(indices), 1);
+
+    // only draw unit cube in projected mode
+    if (g_mode == mode_projected) {
+      sg_apply_pipeline(pip_line);
+      sg_apply_bindings(&bind_line);
+      sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, &SG_RANGE(vs_params));
+      sg_draw(0, sizeof(lines) / sizeof(float) / 2, 1);
+    }
+
     sg_end_pass();
     sg_commit();
 
