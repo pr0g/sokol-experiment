@@ -129,6 +129,11 @@ int main(int argc, char** argv) {
 
   const as_mat44f perspective_projection =
     as_mat44f_perspective_projection_depth_minus_one_to_one_lh(
+      (float)width / (float)height, as_radians_from_degrees(60.0f), 2.0f,
+      10.0f);
+
+  const as_mat44f perspective_projection_projected_mode =
+    as_mat44f_perspective_projection_depth_minus_one_to_one_lh(
       (float)width / (float)height, as_radians_from_degrees(60.0f), 0.01f,
       100.0f);
 
@@ -542,7 +547,8 @@ int main(int argc, char** argv) {
         ? as_mat44f_mul_mat44f(&perspective_projection, &view_model)
       : g_view == view_orthographic
         ? as_mat44f_mul_mat44f(&orthographic_projection, &view_model)
-        : as_mat44f_mul_mat44f(&perspective_projection, &view_model));
+        : as_mat44f_mul_mat44f(
+          &perspective_projection_projected_mode, &view_model));
 
     sg_bindings* bind =
       g_mode == mode_default ? &bind_default : &bind_projected;
