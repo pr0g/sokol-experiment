@@ -23,14 +23,14 @@ typedef enum movement_e {
 // projection to use when in projected mode
 typedef enum view_e { view_perspective, view_orthographic } view_e;
 // mode of rendering
-typedef enum mode_e { mode_default, mode_projected } mode_e;
+typedef enum mode_e { mode_standard, mode_projected } mode_e;
 
 camera_t g_camera = {0};
 camera_t g_last_camera = {0};
 int8_t g_movement = 0;
 as_point2i g_mouse_position = {0};
 bool g_mouse_down = false;
-mode_e g_mode = mode_default;
+mode_e g_mode = mode_standard;
 view_e g_view = view_orthographic;
 as_mat34f g_model_transform = {0};
 
@@ -223,7 +223,7 @@ int main(int argc, char** argv) {
   sg_buffer line_color_buffer =
     sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(line_colors)});
 
-  sg_buffer default_vertex_buffer = sg_make_buffer(&(sg_buffer_desc){
+  sg_buffer standard_vertex_buffer = sg_make_buffer(&(sg_buffer_desc){
     .data = (sg_range){
       .ptr = vertices, .size = array_length(vertices) * sizeof(float)}});
   sg_buffer projected_vertex_buffer = sg_make_buffer(&(sg_buffer_desc){
@@ -271,7 +271,7 @@ int main(int argc, char** argv) {
                  "  frag_color = texture(the_texture, uv / depth_recip);\n"
                  "}\n"});
 
-  sg_shader shader_default = sg_make_shader(&(sg_shader_desc){
+  sg_shader shader_standard = sg_make_shader(&(sg_shader_desc){
     .fs.images[0].image_type = SG_IMAGETYPE_2D,
     .vs.uniform_blocks[0] =
       {.size = sizeof(vs_params_t),
@@ -313,7 +313,6 @@ int main(int argc, char** argv) {
                  "  frag_color = color;\n"
                  "}\n"});
 
-  // a pipeline state object (default render states are fine for triangle)
   sg_pipeline pip_projected = sg_make_pipeline(&(sg_pipeline_desc){
     .shader = shader_projected,
     .layout =
@@ -330,9 +329,8 @@ int main(int argc, char** argv) {
     .cull_mode = SG_CULLMODE_BACK,
     .face_winding = SG_FACEWINDING_CW});
 
-  // a pipeline state object (default render states are fine for triangle)
-  sg_pipeline pip_default = sg_make_pipeline(&(sg_pipeline_desc){
-    .shader = shader_default,
+  sg_pipeline pip_standard = sg_make_pipeline(&(sg_pipeline_desc){
+    .shader = shader_standard,
     .layout =
       {.attrs =
          {[0] = {.format = SG_VERTEXFORMAT_FLOAT3, .buffer_index = 0},
@@ -377,8 +375,8 @@ int main(int argc, char** argv) {
             model.texture.width * model.texture.height * sizeof(uint32_t)},
       .label = "model-texture"})};
 
-  sg_bindings bind_default = {
-    .vertex_buffers = {[0] = default_vertex_buffer, [1] = uv_buffer},
+  sg_bindings bind_standard = {
+    .vertex_buffers = {[0] = standard_vertex_buffer, [1] = uv_buffer},
     .vertex_buffer_offsets = {[0] = 0, [1] = 0},
     .index_buffer = index_buffer,
     .fs_images[0] = sg_make_image(&(sg_image_desc){
@@ -433,7 +431,7 @@ int main(int argc, char** argv) {
         } break;
         case SDL_KEYDOWN: {
           if (current_event.key.keysym.sym == SDLK_p) {
-            if (g_mode == mode_default) {
+            if (g_mode == mode_standard) {
               g_mode = mode_projected;
 
               sg_destroy_buffer(projected_vertex_buffer);
@@ -485,7 +483,7 @@ int main(int argc, char** argv) {
 
             } else {
               g_camera = g_last_camera;
-              g_mode = mode_default;
+              g_mode = mode_standard;
             }
           }
           if (current_event.key.keysym.sym == SDLK_v) {
@@ -533,7 +531,7 @@ int main(int argc, char** argv) {
 
     update_movement((float)delta_time);
 
-    const as_mat34f model = g_mode == mode_default
+    const as_mat34f model = g_mode == mode_standard
                             ? g_model_transform
                             : as_mat34f_translation_from_vec3f((as_vec3f){0});
     const as_mat44f view_model = as_mat44f_from_mat34f_v(
@@ -543,7 +541,7 @@ int main(int argc, char** argv) {
         -1.0f, 1.0f, -1.0f, 1.0f, 0.01f, 100.0f);
 
     vs_params.mvp = as_mat44f_transpose_v(
-      g_mode == mode_default
+      g_mode == mode_standard
         ? as_mat44f_mul_mat44f(&perspective_projection, &view_model)
       : g_view == view_orthographic
         ? as_mat44f_mul_mat44f(&orthographic_projection, &view_model)
@@ -551,8 +549,8 @@ int main(int argc, char** argv) {
           &perspective_projection_projected_mode, &view_model));
 
     sg_bindings* bind =
-      g_mode == mode_default ? &bind_default : &bind_projected;
-    sg_pipeline pip = g_mode == mode_default ? pip_default : pip_projected;
+      g_mode == mode_standard ? &bind_standard : &bind_projected;
+    sg_pipeline pip = g_mode == mode_standard ? pip_standard : pip_projected;
 
     sg_begin_default_pass(&pass_action, width, height);
     sg_apply_pipeline(pip);
