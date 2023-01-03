@@ -246,7 +246,7 @@ int main(int argc, char** argv) {
   } vs_params_t;
 
   sg_shader shader_projected = sg_make_shader(&(sg_shader_desc){
-    .fs.images[0].image_type = SG_IMAGETYPE_2D,
+    .fs.images[0] = {.name = "the_texture", .image_type = SG_IMAGETYPE_2D},
     .vs.uniform_blocks[0] =
       {.size = sizeof(vs_params_t),
        .uniforms = {[0] = {.name = "mvp", .type = SG_UNIFORMTYPE_MAT4}}},
@@ -272,7 +272,7 @@ int main(int argc, char** argv) {
                  "}\n"});
 
   sg_shader shader_standard = sg_make_shader(&(sg_shader_desc){
-    .fs.images[0].image_type = SG_IMAGETYPE_2D,
+    .fs.images[0] = {.name = "the_texture", .image_type = SG_IMAGETYPE_2D},
     .vs.uniform_blocks[0] =
       {.size = sizeof(vs_params_t),
        .uniforms = {[0] = {.name = "mvp", .type = SG_UNIFORMTYPE_MAT4}}},
@@ -575,4 +575,6 @@ int main(int argc, char** argv) {
   sg_shutdown();
   SDL_DestroyWindow(window);
   SDL_Quit();
+  
+  return 0;
 }
