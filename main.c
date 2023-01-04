@@ -4,6 +4,12 @@
 #include <glad/gl.h>
 #include <sokol_gfx.h>
 
+#include "imgui/imgui_impl_sdl.h"
+
+#define SOKOL_IMGUI_NO_SOKOL_APP
+#define SOKOL_IMGUI_IMPL
+#include <util/sokol_imgui.h>
+
 #include <SDL.h>
 #include <as-ops.h>
 
@@ -124,6 +130,8 @@ int main(int argc, char** argv) {
 
   // setup sokol_gfx
   sg_setup(&(sg_desc){0});
+  simgui_setup(&(simgui_desc_t){});
+  ImGui_ImplSDL2_InitForOpenGL(window, context);
 
   g_model_transform = as_mat34f_translation_from_vec3f((as_vec3f){.z = 5.0f});
 
@@ -406,6 +414,10 @@ int main(int argc, char** argv) {
 
     mode_e current_mode = g_mode;
     for (SDL_Event current_event; SDL_PollEvent(&current_event) != 0;) {
+      ImGui_ImplSDL2_ProcessEvent(&current_event);
+      if (igGetIO()->WantCaptureMouse) {
+        continue;
+      }
       switch (current_event.type) {
         case SDL_QUIT: {
           quit = true;
@@ -550,11 +562,22 @@ int main(int argc, char** argv) {
         : as_mat44f_mul_mat44f(
           &perspective_projection_projected_mode, &view_model));
 
+    ImGui_ImplSDL2_NewFrame();
+    simgui_new_frame(&(simgui_frame_desc_t){
+      .width = width,
+      .height = height,
+      .delta_time = delta_time,
+      .dpi_scale = 1.0f});
+
+    static bool open = false;
+    igShowDemoWindow(&open);
+
     sg_bindings* bind =
       g_mode == mode_standard ? &bind_standard : &bind_projected;
     sg_pipeline pip = g_mode == mode_standard ? pip_standard : pip_projected;
 
     sg_begin_default_pass(&pass_action, width, height);
+
     sg_apply_pipeline(pip);
     sg_apply_bindings(bind);
     sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, &SG_RANGE(vs_params));
@@ -568,12 +591,15 @@ int main(int argc, char** argv) {
       sg_draw(0, sizeof(lines) / sizeof(float) / 2, 1);
     }
 
+    simgui_render();
+
     sg_end_pass();
     sg_commit();
 
     SDL_GL_SwapWindow(window);
   }
 
+  simgui_shutdown();
   sg_shutdown();
   SDL_DestroyWindow(window);
   SDL_Quit();

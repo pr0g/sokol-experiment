@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 cmake_policy(SET CMP0135 NEW)
 
-project(sokol-experiment LANGUAGES C CXX)
+project(sokol-experiment LANGUAGES C)
 
 include(FetchContent)
 
@@ -26,8 +26,12 @@ FetchContent_Declare(
   upng
   GIT_REPOSITORY https://github.com/pr0g/upng.git
   GIT_TAG edb284b15fc3c37260d27182e4cf3a366c1734bf)
+FetchContent_Declare(
+  cimgui
+  GIT_REPOSITORY https://github.com/cimgui/cimgui.git
+  GIT_TAG d159c2622d21d1e21ae6a5970d0a8391e0957496)
 
-FetchContent_MakeAvailable(glad SDL2 as-c-math sokol upng)
+FetchContent_MakeAvailable(glad SDL2 as-c-math sokol upng cimgui)
 
 list(APPEND CMAKE_MODULE_PATH ${glad_SOURCE_DIR})
 
@@ -36,10 +40,10 @@ glad_add_library(glad_gl_core_33 REPRODUCIBLE API gl:core=3.3)
 add_executable(${PROJECT_NAME})
 target_sources(
   ${PROJECT_NAME} PRIVATE main.c other/mesh.c other/triangle.c other/texture.c
-                          other/array.c other/camera.c)
+                          other/array.c other/camera.c imgui/imgui_impl_sdl.c)
 target_link_libraries(
   ${PROJECT_NAME} PRIVATE SDL2::SDL2 SDL2::SDL2main as-c-math sokol
-                          glad_gl_core_33 upng)
+                          glad_gl_core_33 upng cimgui)
 
 if(WIN32)
   # copy the SDL2.dll to the same folder as the executable
