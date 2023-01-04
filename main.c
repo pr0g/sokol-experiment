@@ -130,7 +130,7 @@ int main(int argc, char** argv) {
 
   // setup sokol_gfx
   sg_setup(&(sg_desc){0});
-  simgui_setup(&(simgui_desc_t){});
+  simgui_setup(&(simgui_desc_t){.ini_filename = "imgui.ini"});
   ImGui_ImplSDL2_InitForOpenGL(window, context);
 
   g_model_transform = as_mat34f_translation_from_vec3f((as_vec3f){.z = 5.0f});
@@ -442,71 +442,6 @@ int main(int argc, char** argv) {
           g_mouse_down = false;
         } break;
         case SDL_KEYDOWN: {
-          if (current_event.key.keysym.sym == SDLK_p) {
-            if (g_mode == mode_standard) {
-              g_mode = mode_projected;
-
-              sg_destroy_buffer(projected_vertex_buffer);
-              sg_destroy_buffer(vertex_depth_recip_buffer);
-
-              for (int v = 0; v < array_length(projected_vertices); v += 3) {
-                const as_point3f vertex =
-                  (as_point3f){vertices[v], vertices[v + 1], vertices[v + 2]};
-                const as_point3f model_vertex =
-                  as_mat34f_mul_point3f_v(g_model_transform, vertex);
-                const as_point3f model_view_vertex =
-                  as_mat34f_mul_point3f_v(camera_view(&g_camera), model_vertex);
-                const as_point4f projected_vertex = as_mat44f_project_point3f(
-                  &perspective_projection, model_view_vertex);
-                projected_vertices[v] = projected_vertex.x;
-                projected_vertices[v + 1] = projected_vertex.y;
-                projected_vertices[v + 2] = projected_vertex.z;
-              }
-
-              projected_vertex_buffer = sg_make_buffer(&(sg_buffer_desc){
-                .data = (sg_range){
-                  .ptr = projected_vertices,
-                  .size = array_length(projected_vertices) * sizeof(float)}});
-
-              for (int v = 0, d = 0; v < array_length(projected_vertices);
-                   v += 3, d++) {
-                const as_point3f vertex =
-                  (as_point3f){vertices[v], vertices[v + 1], vertices[v + 2]};
-                const as_point3f model_vertex =
-                  as_mat34f_mul_point3f_v(g_model_transform, vertex);
-                const as_point3f model_view_vertex =
-                  as_mat34f_mul_point3f_v(camera_view(&g_camera), model_vertex);
-                vertex_depth_recips[d] = 1.0f / model_view_vertex.z;
-              }
-
-              vertex_depth_recip_buffer = sg_make_buffer(&(sg_buffer_desc){
-                .data = (sg_range){
-                  .ptr = vertex_depth_recips,
-                  .size = array_length(vertex_depth_recips) * sizeof(float)}});
-
-              bind_projected.vertex_buffers[0] = projected_vertex_buffer;
-              bind_projected.vertex_buffers[2] = vertex_depth_recip_buffer;
-
-              g_last_camera = g_camera;
-              g_camera.offset = (as_vec3f){0};
-              g_camera.pivot = (as_point3f){0};
-              g_camera.pitch = 0.0f;
-              g_camera.yaw = 0.0f;
-
-            } else {
-              g_camera = g_last_camera;
-              g_mode = mode_standard;
-              // reset view in projected mode
-              g_view = view_orthographic;
-            }
-          }
-          if (current_event.key.keysym.sym == SDLK_v) {
-            if (g_view == view_orthographic) {
-              g_view = view_perspective;
-            } else {
-              g_view = view_orthographic;
-            }
-          }
           if (current_event.key.keysym.sym == SDLK_ESCAPE) {
             return false;
           } else if (current_event.key.keysym.sym == SDLK_w) {
@@ -569,8 +504,77 @@ int main(int argc, char** argv) {
       .delta_time = delta_time,
       .dpi_scale = 1.0f});
 
-    static bool open = false;
-    igShowDemoWindow(&open);
+    mode_e prev_mode = g_mode;
+    int mode_index = (int)g_mode;
+    const char* mode_names[] = {"Standard", "Projected"};
+    igCombo_Str_arr("Mode", &mode_index, mode_names, 2, 2);
+    g_mode = (mode_e)mode_index;
+
+    if (g_mode != prev_mode) {
+      if (g_mode == mode_projected) {
+        sg_destroy_buffer(projected_vertex_buffer);
+        sg_destroy_buffer(vertex_depth_recip_buffer);
+
+        for (int v = 0; v < array_length(projected_vertices); v += 3) {
+          const as_point3f vertex =
+            (as_point3f){vertices[v], vertices[v + 1], vertices[v + 2]};
+          const as_point3f model_vertex =
+            as_mat34f_mul_point3f_v(g_model_transform, vertex);
+          const as_point3f model_view_vertex =
+            as_mat34f_mul_point3f_v(camera_view(&g_camera), model_vertex);
+          const as_point4f projected_vertex = as_mat44f_project_point3f(
+            &perspective_projection, model_view_vertex);
+          projected_vertices[v] = projected_vertex.x;
+          projected_vertices[v + 1] = projected_vertex.y;
+          projected_vertices[v + 2] = projected_vertex.z;
+        }
+
+        projected_vertex_buffer = sg_make_buffer(&(sg_buffer_desc){
+          .data = (sg_range){
+            .ptr = projected_vertices,
+            .size = array_length(projected_vertices) * sizeof(float)}});
+
+        for (int v = 0, d = 0; v < array_length(projected_vertices);
+             v += 3, d++) {
+          const as_point3f vertex =
+            (as_point3f){vertices[v], vertices[v + 1], vertices[v + 2]};
+          const as_point3f model_vertex =
+            as_mat34f_mul_point3f_v(g_model_transform, vertex);
+          const as_point3f model_view_vertex =
+            as_mat34f_mul_point3f_v(camera_view(&g_camera), model_vertex);
+          vertex_depth_recips[d] = 1.0f / model_view_vertex.z;
+        }
+
+        vertex_depth_recip_buffer = sg_make_buffer(&(sg_buffer_desc){
+          .data = (sg_range){
+            .ptr = vertex_depth_recips,
+            .size = array_length(vertex_depth_recips) * sizeof(float)}});
+
+        bind_projected.vertex_buffers[0] = projected_vertex_buffer;
+        bind_projected.vertex_buffers[2] = vertex_depth_recip_buffer;
+
+        g_last_camera = g_camera;
+        g_camera.offset = (as_vec3f){0};
+        g_camera.pivot = (as_point3f){0};
+        g_camera.pitch = 0.0f;
+        g_camera.yaw = 0.0f;
+      } else {
+        g_camera = g_last_camera;
+        // reset view in projected mode
+        g_view = view_orthographic;
+      }
+    }
+
+    if (g_mode == mode_standard) {
+      igBeginDisabled(true);
+    }
+    int view_index = (int)g_view;
+    const char* view_names[] = {"Perspective", "Orthographic"};
+    igCombo_Str_arr("View", &view_index, view_names, 2, 2);
+    g_view = (view_e)view_index;
+    if (g_mode == mode_standard) {
+      igEndDisabled();
+    }
 
     sg_bindings* bind =
       g_mode == mode_standard ? &bind_standard : &bind_projected;
