@@ -23,8 +23,11 @@ This project has grown into a mini prototype to help visualize perspective proje
 ### Options
 
 - Field of view, near plan, far plane - Adjust perspective projection matrix of `standard` projection (visualized in both `standard` and `projected` mode).
+  - Note: While camera is pinned, changes will not affect pinned camera (the camera state at time of pinning).
 - Mode - Switch between `standard` and `projected` mode (visualize projection). Default is `standard`.
 - View - Switch between `perspective` and `orthographic` projections while in `projected` mode. Default is `orthographic`.
+- Pin camera - Pin the current camera to move and visualize the view frustum in `standard` mode.
+- Draw axes - Draw the world space coordinate axes (X/Y/Z) for reference.
 
 ## Building
 
