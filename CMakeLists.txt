@@ -40,7 +40,7 @@ glad_add_library(glad_gl_core_33 REPRODUCIBLE API gl:core=3.3)
 add_executable(${PROJECT_NAME})
 target_sources(
   ${PROJECT_NAME} PRIVATE main.c other/mesh.c other/triangle.c other/texture.c
-                          other/array.c other/camera.c imgui/imgui_impl_sdl.c)
+                          other/array.c other/camera.c other/frustum.c imgui/imgui_impl_sdl.c)
 target_link_libraries(
   ${PROJECT_NAME} PRIVATE SDL2::SDL2 SDL2::SDL2main as-c-math sokol
                           glad_gl_core_33 upng cimgui)

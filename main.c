@@ -15,6 +15,7 @@
 
 #include "other/array.h"
 #include "other/camera.h"
+#include "other/frustum.h"
 #include "other/mesh.h"
 
 typedef enum movement_e {
@@ -124,23 +125,23 @@ int main(int argc, char** argv) {
     "assets/models/f22.obj", "assets/textures/f22.png");
 
   // setup model data
-  float* vertices = NULL;
-  float* uvs = NULL;
-  uint16_t* indices = NULL;
+  float* model_vertices = NULL;
+  float* model_uvs = NULL;
+  uint16_t* model_indices = NULL;
   uint16_t index = 0;
   const int face_count = array_length(model.mesh.faces);
   for (int f = 0; f < face_count; f++) {
     for (int v = 0; v < 3; v++) {
       const int vertex_index = model.mesh.faces[f].vert_indices[v] - 1;
-      array_push(vertices, model.mesh.vertices[vertex_index].x);
-      array_push(vertices, model.mesh.vertices[vertex_index].y);
-      array_push(vertices, model.mesh.vertices[vertex_index].z);
+      array_push(model_vertices, model.mesh.vertices[vertex_index].x);
+      array_push(model_vertices, model.mesh.vertices[vertex_index].y);
+      array_push(model_vertices, model.mesh.vertices[vertex_index].z);
 
       const int uv_index = model.mesh.faces[f].uv_indices[v] - 1;
-      array_push(uvs, model.mesh.uvs[uv_index].u);
-      array_push(uvs, 1.0f - model.mesh.uvs[uv_index].v);
+      array_push(model_uvs, model.mesh.uvs[uv_index].u);
+      array_push(model_uvs, 1.0f - model.mesh.uvs[uv_index].v);
 
-      array_push(indices, index);
+      array_push(model_indices, index);
       index++;
     }
   }
@@ -161,78 +162,30 @@ int main(int argc, char** argv) {
       (float)width / (float)height, as_radians_from_degrees(60.0f), 0.01f,
       100.0f);
 
+  frustum_corners_t frustum_corners = build_frustum_corners(
+    (float)width / (float)height, as_radians_from_degrees(fov_degrees),
+    near_plane, far_plane);
+
   float* projected_vertices = NULL;
   projected_vertices =
-    array_hold(projected_vertices, array_length(vertices), sizeof(float));
+    array_hold(projected_vertices, array_length(model_vertices), sizeof(float));
 
   float* vertex_depth_recips = NULL;
-  vertex_depth_recips =
-    array_hold(vertex_depth_recips, array_length(vertices) / 3, sizeof(float));
+  vertex_depth_recips = array_hold(
+    vertex_depth_recips, array_length(model_vertices) / 3, sizeof(float));
 
   // clang-format off
-  const float lines[] = {-1.0f, -1.0f, -1.0f,
-                          1.0f, -1.0f, -1.0f,
+  float lines[] = {-1.0f, -1.0f, -1.0f,
                           1.0f, -1.0f, -1.0f,
                           1.0f,  1.0f, -1.0f,
-                          1.0f,  1.0f, -1.0f,
                          -1.0f,  1.0f, -1.0f,
-                         -1.0f,  1.0f, -1.0f,
-                         -1.0f, -1.0f, -1.0f,
-
                          -1.0f, -1.0f, 1.0f,
                           1.0f, -1.0f, 1.0f,
-                          1.0f, -1.0f, 1.0f,
                           1.0f,  1.0f, 1.0f,
-                          1.0f,  1.0f, 1.0f,
-                         -1.0f,  1.0f, 1.0f,
-                         -1.0f,  1.0f, 1.0f,
-                         -1.0f, -1.0f, 1.0f,
-
-                         -1.0f, 1.0f, -1.0f,
-                          1.0f, 1.0f, -1.0f,
-                          1.0f, 1.0f, -1.0f,
-                          1.0f, 1.0f,  1.0f,
-                          1.0f, 1.0f,  1.0f,
-                         -1.0f, 1.0f,  1.0f,
-                         -1.0f, 1.0f,  1.0f,
-                         -1.0f, 1.0f, -1.0f,
-
-                         -1.0f, -1.0f, -1.0f,
-                          1.0f, -1.0f, -1.0f,
-                          1.0f, -1.0f, -1.0f,
-                          1.0f, -1.0f,  1.0f,
-                          1.0f, -1.0f,  1.0f,
-                         -1.0f, -1.0f,  1.0f,
-                         -1.0f, -1.0f,  1.0f,
-                         -1.0f, -1.0f, -1.0f };
+                         -1.0f,  1.0f, 1.0f };
+  const uint16_t line_indices[] = {0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6,
+                                   6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7};
   const uint32_t line_colors[] = {0xffffffff,
-                                  0xffffffff,
-                                  0xffffffff,
-                                  0xffffffff,
-                                  0xffffffff,
-                                  0xffffffff,
-                                  0xffffffff,
-                                  0xffffffff,
-
-                                  0xffffffff,
-                                  0xffffffff,
-                                  0xffffffff,
-                                  0xffffffff,
-                                  0xffffffff,
-                                  0xffffffff,
-                                  0xffffffff,
-                                  0xffffffff,
-
-                                  0xffffffff,
-                                  0xffffffff,
-                                  0xffffffff,
-                                  0xffffffff,
-                                  0xffffffff,
-                                  0xffffffff,
-                                  0xffffffff,
-                                  0xffffffff,
-
-                                  0xffffffff,
                                   0xffffffff,
                                   0xffffffff,
                                   0xffffffff,
@@ -242,20 +195,56 @@ int main(int argc, char** argv) {
                                   0xffffffff};
   // clang-format on
 
+  // lines[0] = frustum_corners.corners[frustum_corner_near_bottom_left].x;
+  // lines[1] = frustum_corners.corners[frustum_corner_near_bottom_left].y;
+  // lines[2] = frustum_corners.corners[frustum_corner_near_bottom_left].z;
+
+  // lines[3] = frustum_corners.corners[frustum_corner_near_bottom_right].x;
+  // lines[4] = frustum_corners.corners[frustum_corner_near_bottom_right].y;
+  // lines[5] = frustum_corners.corners[frustum_corner_near_bottom_right].z;
+
+  // lines[6] = frustum_corners.corners[frustum_corner_near_top_right].x;
+  // lines[7] = frustum_corners.corners[frustum_corner_near_top_right].y;
+  // lines[8] = frustum_corners.corners[frustum_corner_near_top_right].z;
+
+  // lines[9] = frustum_corners.corners[frustum_corner_near_top_left].x;
+  // lines[10] = frustum_corners.corners[frustum_corner_near_top_left].y;
+  // lines[11] = frustum_corners.corners[frustum_corner_near_top_left].z;
+
+  // lines[12] = frustum_corners.corners[frustum_corner_far_bottom_left].x;
+  // lines[13] = frustum_corners.corners[frustum_corner_far_bottom_left].y;
+  // lines[14] = frustum_corners.corners[frustum_corner_far_bottom_left].z;
+
+  // lines[15] = frustum_corners.corners[frustum_corner_far_bottom_right].x;
+  // lines[16] = frustum_corners.corners[frustum_corner_far_bottom_right].y;
+  // lines[17] = frustum_corners.corners[frustum_corner_far_bottom_right].z;
+
+  // lines[18] = frustum_corners.corners[frustum_corner_far_top_right].x;
+  // lines[19] = frustum_corners.corners[frustum_corner_far_top_right].y;
+  // lines[20] = frustum_corners.corners[frustum_corner_far_top_right].z;
+
+  // lines[21] = frustum_corners.corners[frustum_corner_far_top_left].x;
+  // lines[22] = frustum_corners.corners[frustum_corner_far_top_left].y;
+  // lines[23] = frustum_corners.corners[frustum_corner_far_top_left].z;
+
   sg_buffer line_buffer =
     sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(lines)});
   sg_buffer line_color_buffer =
     sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(line_colors)});
+  sg_buffer line_index_buffer = sg_make_buffer(&(sg_buffer_desc){
+    .type = SG_BUFFERTYPE_INDEXBUFFER, .data = SG_RANGE(line_indices)});
 
   sg_buffer standard_vertex_buffer = sg_make_buffer(&(sg_buffer_desc){
     .data = (sg_range){
-      .ptr = vertices, .size = array_length(vertices) * sizeof(float)}});
+      .ptr = model_vertices,
+      .size = array_length(model_vertices) * sizeof(float)}});
   sg_buffer projected_vertex_buffer = sg_make_buffer(&(sg_buffer_desc){
     .data = (sg_range){
       .ptr = projected_vertices,
       .size = array_length(projected_vertices) * sizeof(float)}});
   sg_buffer uv_buffer = sg_make_buffer(&(sg_buffer_desc){
-    .data = (sg_range){.ptr = uvs, .size = array_length(uvs) * sizeof(float)}});
+    .data = (sg_range){
+      .ptr = model_uvs, .size = array_length(model_uvs) * sizeof(float)}});
   sg_buffer vertex_depth_recip_buffer = sg_make_buffer(&(sg_buffer_desc){
     .data = (sg_range){
       .ptr = vertex_depth_recips,
@@ -263,7 +252,8 @@ int main(int argc, char** argv) {
   sg_buffer index_buffer = sg_make_buffer(&(sg_buffer_desc){
     .type = SG_BUFFERTYPE_INDEXBUFFER,
     .data = (sg_range){
-      .ptr = indices, .size = array_length(indices) * sizeof(uint16_t)}});
+      .ptr = model_indices,
+      .size = array_length(model_indices) * sizeof(uint16_t)}});
 
   typedef struct vs_params_t {
     as_mat44f mvp;
@@ -374,6 +364,7 @@ int main(int argc, char** argv) {
       {.attrs =
          {[0] = {.format = SG_VERTEXFORMAT_FLOAT3, .buffer_index = 0},
           [1] = {.format = SG_VERTEXFORMAT_UBYTE4N, .buffer_index = 1}}},
+    .index_type = SG_INDEXTYPE_UINT16,
     .depth =
       {
         .compare = SG_COMPAREFUNC_LESS_EQUAL,
@@ -415,7 +406,8 @@ int main(int argc, char** argv) {
 
   sg_bindings bind_line = {
     .vertex_buffers = {[0] = line_buffer, [1] = line_color_buffer},
-    .vertex_buffer_offsets = {[0] = 0, [1] = 0}};
+    .vertex_buffer_offsets = {[0] = 0, [1] = 0},
+    .index_buffer = line_index_buffer};
 
   // default pass action (clear to grey)
   sg_pass_action pass_action = {0};
@@ -516,6 +508,8 @@ int main(int argc, char** argv) {
     const float current_near_plane = near_plane;
     const float current_far_plane = far_plane;
 
+    bool pin_camera = false;
+
     igSliderFloat("Field of view", &fov_degrees, 10.0f, 179.0f, "%.3f", 0);
     igSliderFloat("Near plane", &near_plane, 0.01f, 19.9f, "%.3f", 0);
     igSliderFloat("Far plane", &far_plane, 20.0f, 1000.0f, "%.3f", 0);
@@ -545,6 +539,10 @@ int main(int argc, char** argv) {
       || !float_near(far_plane, current_far_plane, FLT_EPSILON, FLT_EPSILON);
     const bool mode_changed = g_mode != prev_mode;
 
+    if (!pin_camera) {
+      g_last_camera = g_camera;
+    }
+
     if (mode_changed || projection_parameters_changed) {
       if (g_mode == mode_projected) {
         if (mode_changed) {
@@ -559,8 +557,8 @@ int main(int argc, char** argv) {
         sg_destroy_buffer(vertex_depth_recip_buffer);
 
         for (int v = 0; v < array_length(projected_vertices); v += 3) {
-          const as_point3f vertex =
-            (as_point3f){vertices[v], vertices[v + 1], vertices[v + 2]};
+          const as_point3f vertex = (as_point3f){
+            model_vertices[v], model_vertices[v + 1], model_vertices[v + 2]};
           const as_point3f model_vertex =
             as_mat34f_mul_point3f_v(g_model_transform, vertex);
           const as_point3f model_view_vertex =
@@ -579,8 +577,8 @@ int main(int argc, char** argv) {
 
         for (int v = 0, d = 0; v < array_length(projected_vertices);
              v += 3, d++) {
-          const as_point3f vertex =
-            (as_point3f){vertices[v], vertices[v + 1], vertices[v + 2]};
+          const as_point3f vertex = (as_point3f){
+            model_vertices[v], model_vertices[v + 1], model_vertices[v + 2]};
           const as_point3f model_vertex =
             as_mat34f_mul_point3f_v(g_model_transform, vertex);
           const as_point3f model_view_vertex =
@@ -615,6 +613,8 @@ int main(int argc, char** argv) {
       igEndDisabled();
     }
 
+    igCheckbox("Pin camera", &pin_camera);
+
     sg_bindings* bind =
       g_mode == mode_standard ? &bind_standard : &bind_projected;
     sg_pipeline pip = g_mode == mode_standard ? pip_standard : pip_projected;
@@ -624,14 +624,14 @@ int main(int argc, char** argv) {
     sg_apply_pipeline(pip);
     sg_apply_bindings(bind);
     sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, &SG_RANGE(vs_params));
-    sg_draw(0, array_length(indices), 1);
+    sg_draw(0, array_length(model_indices), 1);
 
     // only draw unit cube in projected mode
     if (g_mode == mode_projected) {
       sg_apply_pipeline(pip_line);
       sg_apply_bindings(&bind_line);
       sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, &SG_RANGE(vs_params));
-      sg_draw(0, sizeof(lines) / sizeof(float) / 2, 1);
+      sg_draw(0, sizeof(line_indices) / sizeof(uint16_t), 1);
     }
 
     simgui_render();
