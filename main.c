@@ -72,6 +72,23 @@ static void update_movement(const float delta_time) {
   }
 }
 
+// floating point comparison by Bruce Dawson
+// ref:
+// https://randomascii.wordpress.com/2012/02/25/comparing-floating-point-numbers-2012-edition/
+static bool float_near(
+  const float a, const float b, const float max_diff /*= FLT__EPSILON*/,
+  const float max_rel_diff /*= FLT__EPSILON*/) {
+  // check if the numbers are really close
+  // needed when comparing numbers near zero
+  const float diff = fabsf(a - b);
+  if (diff <= max_diff) {
+    return true;
+  }
+  const float largest = fmaxf(fabsf(a), fabsf(b));
+  // find relative difference
+  return diff <= largest * max_rel_diff;
+}
+
 int main(int argc, char** argv) {
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
     printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
@@ -135,10 +152,9 @@ int main(int argc, char** argv) {
 
   g_model_transform = as_mat34f_translation_from_vec3f((as_vec3f){.z = 5.0f});
 
-  const as_mat44f perspective_projection =
-    as_mat44f_perspective_projection_depth_minus_one_to_one_lh(
-      (float)width / (float)height, as_radians_from_degrees(60.0f), 2.0f,
-      10.0f);
+  float fov_degrees = 60.0f;
+  float near_plane = 2.0f;
+  float far_plane = 10.0f;
 
   const as_mat44f perspective_projection_projected_mode =
     as_mat44f_perspective_projection_depth_minus_one_to_one_lh(
@@ -489,6 +505,26 @@ int main(int argc, char** argv) {
       as_mat44f_orthographic_projection_depth_minus_one_to_one_lh(
         -1.0f, 1.0f, -1.0f, 1.0f, 0.01f, 100.0f);
 
+    ImGui_ImplSDL2_NewFrame();
+    simgui_new_frame(&(simgui_frame_desc_t){
+      .width = width,
+      .height = height,
+      .delta_time = delta_time,
+      .dpi_scale = 1.0f});
+
+    const float current_fov = fov_degrees;
+    const float current_near_plane = near_plane;
+    const float current_far_plane = far_plane;
+
+    igSliderFloat("Field of view", &fov_degrees, 10.0f, 179.0f, "%.3f", 0);
+    igSliderFloat("Near plane", &near_plane, 0.01f, 19.9f, "%.3f", 0);
+    igSliderFloat("Far plane", &far_plane, 20.0f, 1000.0f, "%.3f", 0);
+
+    const as_mat44f perspective_projection =
+      as_mat44f_perspective_projection_depth_minus_one_to_one_lh(
+        (float)width / (float)height, as_radians_from_degrees(fov_degrees),
+        near_plane, far_plane);
+
     vs_params.mvp = as_mat44f_transpose_v(
       g_mode == mode_standard
         ? as_mat44f_mul_mat44f(&perspective_projection, &view_model)
@@ -497,21 +533,28 @@ int main(int argc, char** argv) {
         : as_mat44f_mul_mat44f(
           &perspective_projection_projected_mode, &view_model));
 
-    ImGui_ImplSDL2_NewFrame();
-    simgui_new_frame(&(simgui_frame_desc_t){
-      .width = width,
-      .height = height,
-      .delta_time = delta_time,
-      .dpi_scale = 1.0f});
-
     mode_e prev_mode = g_mode;
     int mode_index = (int)g_mode;
     const char* mode_names[] = {"Standard", "Projected"};
     igCombo_Str_arr("Mode", &mode_index, mode_names, 2, 2);
     g_mode = (mode_e)mode_index;
 
-    if (g_mode != prev_mode) {
+    const bool projection_parameters_changed =
+      !float_near(fov_degrees, current_fov, FLT_EPSILON, FLT_EPSILON)
+      || !float_near(near_plane, current_near_plane, FLT_EPSILON, FLT_EPSILON)
+      || !float_near(far_plane, current_far_plane, FLT_EPSILON, FLT_EPSILON);
+    const bool mode_changed = g_mode != prev_mode;
+
+    if (mode_changed || projection_parameters_changed) {
       if (g_mode == mode_projected) {
+        if (mode_changed) {
+          g_last_camera = g_camera;
+          g_camera.offset = (as_vec3f){0};
+          g_camera.pivot = (as_point3f){0};
+          g_camera.pitch = 0.0f;
+          g_camera.yaw = 0.0f;
+        }
+
         sg_destroy_buffer(projected_vertex_buffer);
         sg_destroy_buffer(vertex_depth_recip_buffer);
 
@@ -521,7 +564,7 @@ int main(int argc, char** argv) {
           const as_point3f model_vertex =
             as_mat34f_mul_point3f_v(g_model_transform, vertex);
           const as_point3f model_view_vertex =
-            as_mat34f_mul_point3f_v(camera_view(&g_camera), model_vertex);
+            as_mat34f_mul_point3f_v(camera_view(&g_last_camera), model_vertex);
           const as_point4f projected_vertex = as_mat44f_project_point3f(
             &perspective_projection, model_view_vertex);
           projected_vertices[v] = projected_vertex.x;
@@ -541,7 +584,7 @@ int main(int argc, char** argv) {
           const as_point3f model_vertex =
             as_mat34f_mul_point3f_v(g_model_transform, vertex);
           const as_point3f model_view_vertex =
-            as_mat34f_mul_point3f_v(camera_view(&g_camera), model_vertex);
+            as_mat34f_mul_point3f_v(camera_view(&g_last_camera), model_vertex);
           vertex_depth_recips[d] = 1.0f / model_view_vertex.z;
         }
 
@@ -552,16 +595,12 @@ int main(int argc, char** argv) {
 
         bind_projected.vertex_buffers[0] = projected_vertex_buffer;
         bind_projected.vertex_buffers[2] = vertex_depth_recip_buffer;
-
-        g_last_camera = g_camera;
-        g_camera.offset = (as_vec3f){0};
-        g_camera.pivot = (as_point3f){0};
-        g_camera.pitch = 0.0f;
-        g_camera.yaw = 0.0f;
       } else {
-        g_camera = g_last_camera;
-        // reset view in projected mode
-        g_view = view_orthographic;
+        if (mode_changed) {
+          g_camera = g_last_camera;
+          // reset view in projected mode
+          g_view = view_orthographic;
+        }
       }
     }
 
