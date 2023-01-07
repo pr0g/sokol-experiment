@@ -16,11 +16,15 @@ This project has grown into a mini prototype to help visualize perspective proje
 
 ### Controls
 
-- Right mouse button + mouse move - Free look
-- WASD - Move forward, back, left and right
-- EQ - Move up and down
-- P - Toggle 'projected' mode (visualize projection). Default is 'standard'.
-- V - Toggle projection type (perspective/orthographic) while in 'projected' mode. Default is orthographic.
+- Left/right mouse button + mouse move - Free look
+- <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> - Move forward, back, left and right
+- <kbd>E</kbd> <kbd>Q</kbd> - Move up and down
+
+### Options
+
+- Field of view, near plan, far plane - Adjust perspective projection matrix of `standard` projection (visualized in both `standard` and `projected` mode).
+- Mode - Switch between `standard` and `projected` mode (visualize projection). Default is `standard`.
+- View - Switch between `perspective` and `orthographic` projections while in `projected` mode. Default is `orthographic`.
 
 ## Building
 
