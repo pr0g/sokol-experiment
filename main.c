@@ -33,7 +33,6 @@ typedef enum view_e { view_perspective, view_orthographic } view_e;
 typedef enum mode_e { mode_standard, mode_projected } mode_e;
 
 camera_t g_camera = {0};
-camera_t g_last_camera = {0};
 int8_t g_movement = 0;
 as_point2i g_mouse_position = {0};
 bool g_mouse_down = false;
@@ -162,10 +161,6 @@ int main(int argc, char** argv) {
       (float)width / (float)height, as_radians_from_degrees(60.0f), 0.01f,
       100.0f);
 
-  frustum_corners_t frustum_corners = build_frustum_corners(
-    (float)width / (float)height, as_radians_from_degrees(fov_degrees),
-    near_plane, far_plane);
-
   float* projected_vertices = NULL;
   projected_vertices =
     array_hold(projected_vertices, array_length(model_vertices), sizeof(float));
@@ -175,16 +170,27 @@ int main(int argc, char** argv) {
     vertex_depth_recips, array_length(model_vertices) / 3, sizeof(float));
 
   // clang-format off
-  float lines[] = {-1.0f, -1.0f, -1.0f,
-                          1.0f, -1.0f, -1.0f,
-                          1.0f,  1.0f, -1.0f,
-                         -1.0f,  1.0f, -1.0f,
-                         -1.0f, -1.0f, 1.0f,
-                          1.0f, -1.0f, 1.0f,
-                          1.0f,  1.0f, 1.0f,
-                         -1.0f,  1.0f, 1.0f };
+  const int cube_line_indices_count = 24;
+  const int axes_line_indices_count = 6;
+  const float unit_lines[] = {// ndc cube
+                              -1.0f, -1.0f, -1.0f, // near bottom left
+                               1.0f, -1.0f, -1.0f, // near bottom right
+                               1.0f,  1.0f, -1.0f, // near top right
+                              -1.0f,  1.0f, -1.0f, // near top left
+                              -1.0f, -1.0f,  1.0f, // far bottom left
+                               1.0f, -1.0f,  1.0f, // far bottom right
+                               1.0f,  1.0f,  1.0f, // far top right
+                              -1.0f,  1.0f,  1.0f, // far top left
+                              // axes
+                              -100.0f,  0.0f,    0.0f,
+                               100.0f,  0.0f,    0.0f,
+                               0.0f,   -100.0f,  0.0f,
+                               0.0f,    100.0f,  0.0f,
+                               0.0f,    0.0f,   -100.0f,
+                               0.0f,    0.0f,    100.0f  };
   const uint16_t line_indices[] = {0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6,
-                                   6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7};
+                                   6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7,
+                                   8, 9, 10, 11, 12, 13};
   const uint32_t line_colors[] = {0xffffffff,
                                   0xffffffff,
                                   0xffffffff,
@@ -192,40 +198,17 @@ int main(int argc, char** argv) {
                                   0xffffffff,
                                   0xffffffff,
                                   0xffffffff,
-                                  0xffffffff};
+                                  0xffffffff,
+                                  0xffaaaaaa,
+                                  0xffaaaaaa,
+                                  0xffaaaaaa,
+                                  0xffaaaaaa,
+                                  0xffaaaaaa,
+                                  0xffaaaaaa};
   // clang-format on
 
-  // lines[0] = frustum_corners.corners[frustum_corner_near_bottom_left].x;
-  // lines[1] = frustum_corners.corners[frustum_corner_near_bottom_left].y;
-  // lines[2] = frustum_corners.corners[frustum_corner_near_bottom_left].z;
-
-  // lines[3] = frustum_corners.corners[frustum_corner_near_bottom_right].x;
-  // lines[4] = frustum_corners.corners[frustum_corner_near_bottom_right].y;
-  // lines[5] = frustum_corners.corners[frustum_corner_near_bottom_right].z;
-
-  // lines[6] = frustum_corners.corners[frustum_corner_near_top_right].x;
-  // lines[7] = frustum_corners.corners[frustum_corner_near_top_right].y;
-  // lines[8] = frustum_corners.corners[frustum_corner_near_top_right].z;
-
-  // lines[9] = frustum_corners.corners[frustum_corner_near_top_left].x;
-  // lines[10] = frustum_corners.corners[frustum_corner_near_top_left].y;
-  // lines[11] = frustum_corners.corners[frustum_corner_near_top_left].z;
-
-  // lines[12] = frustum_corners.corners[frustum_corner_far_bottom_left].x;
-  // lines[13] = frustum_corners.corners[frustum_corner_far_bottom_left].y;
-  // lines[14] = frustum_corners.corners[frustum_corner_far_bottom_left].z;
-
-  // lines[15] = frustum_corners.corners[frustum_corner_far_bottom_right].x;
-  // lines[16] = frustum_corners.corners[frustum_corner_far_bottom_right].y;
-  // lines[17] = frustum_corners.corners[frustum_corner_far_bottom_right].z;
-
-  // lines[18] = frustum_corners.corners[frustum_corner_far_top_right].x;
-  // lines[19] = frustum_corners.corners[frustum_corner_far_top_right].y;
-  // lines[20] = frustum_corners.corners[frustum_corner_far_top_right].z;
-
-  // lines[21] = frustum_corners.corners[frustum_corner_far_top_left].x;
-  // lines[22] = frustum_corners.corners[frustum_corner_far_top_left].y;
-  // lines[23] = frustum_corners.corners[frustum_corner_far_top_left].z;
+  float lines[sizeof(unit_lines) / sizeof(float)];
+  memcpy(&lines, unit_lines, sizeof(lines));
 
   sg_buffer line_buffer =
     sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(lines)});
@@ -412,7 +395,24 @@ int main(int argc, char** argv) {
   // default pass action (clear to grey)
   sg_pass_action pass_action = {0};
 
-  vs_params_t vs_params;
+  typedef struct pinned_camera_t {
+    camera_t camera;
+    float fov_degrees;
+    float near_plane;
+    float far_plane;
+  } pinned_camera_t;
+
+  camera_t projected_camera = {0};
+  pinned_camera_t pinned_camera_state = {
+    .camera = {0},
+    .fov_degrees = fov_degrees,
+    .far_plane = far_plane,
+    .near_plane = near_plane};
+
+  bool pin_camera = false;
+  bool draw_axes = false;
+  vs_params_t vs_params_model;
+  vs_params_t vs_params_lines;
   uint64_t previous_counter = 0;
   for (bool quit = false; !quit;) {
     const uint64_t current_counter = SDL_GetPerformanceCounter();
@@ -491,8 +491,9 @@ int main(int argc, char** argv) {
     const as_mat34f model = g_mode == mode_standard
                             ? g_model_transform
                             : as_mat34f_translation_from_vec3f((as_vec3f){0});
-    const as_mat44f view_model = as_mat44f_from_mat34f_v(
-      as_mat34f_mul_mat34f_v(camera_view(&g_camera), model));
+    const as_mat44f view = as_mat44f_from_mat34f_v(camera_view(&g_camera));
+    const as_mat44f view_model =
+      as_mat44f_mul_mat44f_v(view, as_mat44f_from_mat34f(&model));
     const as_mat44f orthographic_projection =
       as_mat44f_orthographic_projection_depth_minus_one_to_one_lh(
         -1.0f, 1.0f, -1.0f, 1.0f, 0.01f, 100.0f);
@@ -508,18 +509,23 @@ int main(int argc, char** argv) {
     const float current_near_plane = near_plane;
     const float current_far_plane = far_plane;
 
-    bool pin_camera = false;
-
     igSliderFloat("Field of view", &fov_degrees, 10.0f, 179.0f, "%.3f", 0);
-    igSliderFloat("Near plane", &near_plane, 0.01f, 19.9f, "%.3f", 0);
-    igSliderFloat("Far plane", &far_plane, 20.0f, 1000.0f, "%.3f", 0);
+    igSliderFloat("Near plane", &near_plane, 0.01f, 9.9f, "%.3f", 0);
+    igSliderFloat("Far plane", &far_plane, 10.0f, 1000.0f, "%.3f", 0);
 
     const as_mat44f perspective_projection =
       as_mat44f_perspective_projection_depth_minus_one_to_one_lh(
         (float)width / (float)height, as_radians_from_degrees(fov_degrees),
         near_plane, far_plane);
 
-    vs_params.mvp = as_mat44f_transpose_v(
+    vs_params_lines.mvp = as_mat44f_transpose_v(
+      g_mode == mode_standard
+        ? as_mat44f_mul_mat44f(&perspective_projection, &view)
+      : g_view == view_orthographic
+        ? as_mat44f_mul_mat44f(&orthographic_projection, &view)
+        : as_mat44f_mul_mat44f(&perspective_projection_projected_mode, &view));
+
+    vs_params_model.mvp = as_mat44f_transpose_v(
       g_mode == mode_standard
         ? as_mat44f_mul_mat44f(&perspective_projection, &view_model)
       : g_view == view_orthographic
@@ -539,14 +545,93 @@ int main(int argc, char** argv) {
       || !float_near(far_plane, current_far_plane, FLT_EPSILON, FLT_EPSILON);
     const bool mode_changed = g_mode != prev_mode;
 
-    if (!pin_camera) {
-      g_last_camera = g_camera;
+    if (g_mode == mode_standard) {
+      igBeginDisabled(true);
+    }
+    int view_index = (int)g_view;
+    const char* view_names[] = {"Perspective", "Orthographic"};
+    igCombo_Str_arr("View", &view_index, view_names, 2, 2);
+    g_view = (view_e)view_index;
+    if (g_mode == mode_standard) {
+      igEndDisabled();
     }
 
-    if (mode_changed || projection_parameters_changed) {
+    if (g_mode == mode_projected) {
+      igBeginDisabled(true);
+    }
+    const bool camera_pinned = pin_camera;
+    igCheckbox("Pin camera", &pin_camera);
+    const bool pin_camera_changed = pin_camera != camera_pinned;
+    if (g_mode == mode_projected) {
+      igEndDisabled();
+    }
+
+    igCheckbox("Draw axes", &draw_axes);
+
+    if (!pin_camera) {
+      pinned_camera_state.camera = g_camera;
+      pinned_camera_state.fov_degrees = fov_degrees;
+      pinned_camera_state.near_plane = near_plane;
+      pinned_camera_state.far_plane = far_plane;
+    } else {
+      const frustum_corners_t frustum_corners = build_frustum_corners(
+        (float)width / (float)height,
+        as_radians_from_degrees(pinned_camera_state.fov_degrees),
+        pinned_camera_state.near_plane, pinned_camera_state.far_plane);
+      lines[0] = frustum_corners.corners[frustum_corner_near_bottom_left].x;
+      lines[1] = frustum_corners.corners[frustum_corner_near_bottom_left].y;
+      lines[2] = frustum_corners.corners[frustum_corner_near_bottom_left].z;
+      lines[3] = frustum_corners.corners[frustum_corner_near_bottom_right].x;
+      lines[4] = frustum_corners.corners[frustum_corner_near_bottom_right].y;
+      lines[5] = frustum_corners.corners[frustum_corner_near_bottom_right].z;
+      lines[6] = frustum_corners.corners[frustum_corner_near_top_right].x;
+      lines[7] = frustum_corners.corners[frustum_corner_near_top_right].y;
+      lines[8] = frustum_corners.corners[frustum_corner_near_top_right].z;
+      lines[9] = frustum_corners.corners[frustum_corner_near_top_left].x;
+      lines[10] = frustum_corners.corners[frustum_corner_near_top_left].y;
+      lines[11] = frustum_corners.corners[frustum_corner_near_top_left].z;
+      lines[12] = frustum_corners.corners[frustum_corner_far_bottom_left].x;
+      lines[13] = frustum_corners.corners[frustum_corner_far_bottom_left].y;
+      lines[14] = frustum_corners.corners[frustum_corner_far_bottom_left].z;
+      lines[15] = frustum_corners.corners[frustum_corner_far_bottom_right].x;
+      lines[16] = frustum_corners.corners[frustum_corner_far_bottom_right].y;
+      lines[17] = frustum_corners.corners[frustum_corner_far_bottom_right].z;
+      lines[18] = frustum_corners.corners[frustum_corner_far_top_right].x;
+      lines[19] = frustum_corners.corners[frustum_corner_far_top_right].y;
+      lines[20] = frustum_corners.corners[frustum_corner_far_top_right].z;
+      lines[21] = frustum_corners.corners[frustum_corner_far_top_left].x;
+      lines[22] = frustum_corners.corners[frustum_corner_far_top_left].y;
+      lines[23] = frustum_corners.corners[frustum_corner_far_top_left].z;
+
+      for (int corner_index = 0; corner_index < FrustumCornerCount;
+           ++corner_index) {
+        const as_point3f corner = frustum_corners.corners[corner_index];
+        const as_point3f view_corner = as_mat34f_mul_point3f_v(
+          camera_transform(&pinned_camera_state.camera), corner);
+        lines[corner_index * 3 + 0] = view_corner.x;
+        lines[corner_index * 3 + 1] = view_corner.y;
+        lines[corner_index * 3 + 2] = view_corner.z;
+      }
+    }
+
+    if (mode_changed || projection_parameters_changed || pin_camera_changed) {
+      if (g_mode == mode_standard) {
+        sg_destroy_buffer(line_buffer);
+        line_buffer =
+          sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(lines)});
+        bind_line.vertex_buffers[0] = line_buffer;
+      }
+
       if (g_mode == mode_projected) {
         if (mode_changed) {
-          g_last_camera = g_camera;
+          memcpy(&lines, unit_lines, sizeof(lines));
+          sg_destroy_buffer(line_buffer);
+          line_buffer =
+            sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(lines)});
+          bind_line.vertex_buffers[0] = line_buffer;
+
+          projected_camera = pinned_camera_state.camera;
+
           g_camera.offset = (as_vec3f){0};
           g_camera.pivot = (as_point3f){0};
           g_camera.pitch = 0.0f;
@@ -556,15 +641,21 @@ int main(int argc, char** argv) {
         sg_destroy_buffer(projected_vertex_buffer);
         sg_destroy_buffer(vertex_depth_recip_buffer);
 
+        const as_mat44f pinned_perspective_projection =
+          as_mat44f_perspective_projection_depth_minus_one_to_one_lh(
+            (float)width / (float)height,
+            as_radians_from_degrees(pinned_camera_state.fov_degrees),
+            pinned_camera_state.near_plane, pinned_camera_state.far_plane);
+
         for (int v = 0; v < array_length(projected_vertices); v += 3) {
           const as_point3f vertex = (as_point3f){
             model_vertices[v], model_vertices[v + 1], model_vertices[v + 2]};
           const as_point3f model_vertex =
             as_mat34f_mul_point3f_v(g_model_transform, vertex);
-          const as_point3f model_view_vertex =
-            as_mat34f_mul_point3f_v(camera_view(&g_last_camera), model_vertex);
+          const as_point3f model_view_vertex = as_mat34f_mul_point3f_v(
+            camera_view(&projected_camera), model_vertex);
           const as_point4f projected_vertex = as_mat44f_project_point3f(
-            &perspective_projection, model_view_vertex);
+            &pinned_perspective_projection, model_view_vertex);
           projected_vertices[v] = projected_vertex.x;
           projected_vertices[v + 1] = projected_vertex.y;
           projected_vertices[v + 2] = projected_vertex.z;
@@ -581,8 +672,8 @@ int main(int argc, char** argv) {
             model_vertices[v], model_vertices[v + 1], model_vertices[v + 2]};
           const as_point3f model_vertex =
             as_mat34f_mul_point3f_v(g_model_transform, vertex);
-          const as_point3f model_view_vertex =
-            as_mat34f_mul_point3f_v(camera_view(&g_last_camera), model_vertex);
+          const as_point3f model_view_vertex = as_mat34f_mul_point3f_v(
+            camera_view(&projected_camera), model_vertex);
           vertex_depth_recips[d] = 1.0f / model_view_vertex.z;
         }
 
@@ -595,25 +686,12 @@ int main(int argc, char** argv) {
         bind_projected.vertex_buffers[2] = vertex_depth_recip_buffer;
       } else {
         if (mode_changed) {
-          g_camera = g_last_camera;
+          g_camera = projected_camera;
           // reset view in projected mode
           g_view = view_orthographic;
         }
       }
     }
-
-    if (g_mode == mode_standard) {
-      igBeginDisabled(true);
-    }
-    int view_index = (int)g_view;
-    const char* view_names[] = {"Perspective", "Orthographic"};
-    igCombo_Str_arr("View", &view_index, view_names, 2, 2);
-    g_view = (view_e)view_index;
-    if (g_mode == mode_standard) {
-      igEndDisabled();
-    }
-
-    igCheckbox("Pin camera", &pin_camera);
 
     sg_bindings* bind =
       g_mode == mode_standard ? &bind_standard : &bind_projected;
@@ -623,15 +701,20 @@ int main(int argc, char** argv) {
 
     sg_apply_pipeline(pip);
     sg_apply_bindings(bind);
-    sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, &SG_RANGE(vs_params));
+    sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, &SG_RANGE(vs_params_model));
     sg_draw(0, array_length(model_indices), 1);
 
     // only draw unit cube in projected mode
-    if (g_mode == mode_projected) {
+    if (g_mode == mode_projected || pin_camera || draw_axes) {
       sg_apply_pipeline(pip_line);
       sg_apply_bindings(&bind_line);
-      sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, &SG_RANGE(vs_params));
-      sg_draw(0, sizeof(line_indices) / sizeof(uint16_t), 1);
+      sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, &SG_RANGE(vs_params_lines));
+      if (g_mode == mode_projected || pin_camera) {
+        sg_draw(0, cube_line_indices_count, 1);
+      }
+      if (draw_axes) {
+        sg_draw(cube_line_indices_count, axes_line_indices_count, 1);
+      }
     }
 
     simgui_render();
