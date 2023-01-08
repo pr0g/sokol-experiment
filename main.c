@@ -12,6 +12,7 @@
 
 #include <SDL.h>
 #include <as-ops.h>
+#include <float.h>
 
 #include "other/array.h"
 #include "other/camera.h"
