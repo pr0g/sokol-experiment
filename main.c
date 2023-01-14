@@ -147,6 +147,10 @@ int main(int argc, char** argv) {
     }
   }
 
+  array_free(model.mesh.vertices);
+  array_free(model.mesh.uvs);
+  array_free(model.mesh.faces);
+
   // setup sokol_gfx
   sg_setup(&(sg_desc){0});
   simgui_setup(&(simgui_desc_t){.ini_filename = "imgui.ini"});
@@ -364,6 +368,15 @@ int main(int argc, char** argv) {
       },
     .primitive_type = SG_PRIMITIVETYPE_LINES});
 
+  sg_image model_image = sg_make_image(&(sg_image_desc){
+    .width = model.texture.width,
+    .height = model.texture.height,
+    .data.subimage[0][0] =
+      (sg_range){
+        .ptr = model.texture.color_buffer,
+        .size = model.texture.width * model.texture.height * sizeof(uint32_t)},
+    .label = "model-texture"});
+
   // resource bindings
   sg_bindings bind_projected = {
     .vertex_buffers =
@@ -372,29 +385,13 @@ int main(int argc, char** argv) {
        [2] = vertex_depth_recip_buffer},
     .vertex_buffer_offsets = {[0] = 0, [1] = 0, [2] = 0},
     .index_buffer = index_buffer,
-    .fs_images[0] = sg_make_image(&(sg_image_desc){
-      .width = model.texture.width,
-      .height = model.texture.height,
-      .data.subimage[0][0] =
-        (sg_range){
-          .ptr = model.texture.color_buffer,
-          .size =
-            model.texture.width * model.texture.height * sizeof(uint32_t)},
-      .label = "model-texture"})};
+    .fs_images[0] = model_image};
 
   sg_bindings bind_standard = {
     .vertex_buffers = {[0] = standard_vertex_buffer, [1] = uv_buffer},
     .vertex_buffer_offsets = {[0] = 0, [1] = 0},
     .index_buffer = index_buffer,
-    .fs_images[0] = sg_make_image(&(sg_image_desc){
-      .width = model.texture.width,
-      .height = model.texture.height,
-      .data.subimage[0][0] =
-        (sg_range){
-          .ptr = model.texture.color_buffer,
-          .size =
-            model.texture.width * model.texture.height * sizeof(uint32_t)},
-      .label = "model-texture"})};
+    .fs_images[0] = model_image};
 
   sg_bindings bind_line = {
     .vertex_buffers = {[0] = line_buffer, [1] = line_color_buffer},
@@ -743,6 +740,29 @@ int main(int argc, char** argv) {
 
     SDL_GL_SwapWindow(window);
   }
+
+  sg_destroy_buffer(line_buffer);
+  sg_destroy_buffer(line_color_buffer);
+  sg_destroy_buffer(line_index_buffer);
+  sg_destroy_buffer(standard_vertex_buffer);
+  sg_destroy_buffer(projected_vertex_buffer);
+  sg_destroy_buffer(uv_buffer);
+  sg_destroy_buffer(vertex_depth_recip_buffer);
+  sg_destroy_buffer(index_buffer);
+  sg_destroy_shader(shader_standard);
+  sg_destroy_shader(shader_projected);
+  sg_destroy_shader(shader_line);
+  sg_destroy_pipeline(pip_line);
+  sg_destroy_pipeline(pip_standard);
+  sg_destroy_pipeline(pip_projected);
+  sg_destroy_pipeline(pip_projected_affine);
+  sg_destroy_image(model_image);
+
+  array_free(model_vertices);
+  array_free(model_uvs);
+  array_free(model_indices);
+
+  upng_free(model.texture.png_texture);
 
   simgui_shutdown();
   sg_shutdown();
