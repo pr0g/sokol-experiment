@@ -331,12 +331,16 @@ int main(int argc, char** argv) {
       },
     .cull_mode = SG_CULLMODE_BACK,
     .face_winding = SG_FACEWINDING_CW};
+  const sg_pipeline pip_projected = sg_make_pipeline(&pip_projected_desc);
 
-  sg_pipeline pip_projected = sg_make_pipeline(&pip_projected_desc);
-
-  sg_pipeline_desc pip_projected_desc_affine = pip_projected_desc;
-  pip_projected_desc_affine.shader = shader_standard;
-  sg_pipeline pip_projected_affine =
+  const sg_pipeline_desc pip_projected_desc_affine = (sg_pipeline_desc){
+    .shader = shader_standard,
+    .layout = pip_projected_desc.layout,
+    .index_type = pip_projected_desc.index_type,
+    .depth = pip_projected_desc.depth,
+    .cull_mode = pip_projected_desc.cull_mode,
+    .face_winding = pip_projected_desc.face_winding};
+  const sg_pipeline pip_projected_affine =
     sg_make_pipeline(&pip_projected_desc_affine);
 
   sg_pipeline pip_standard = sg_make_pipeline(&(sg_pipeline_desc){
