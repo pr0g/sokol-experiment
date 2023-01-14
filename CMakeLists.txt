@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 cmake_policy(SET CMP0135 NEW)
 
-project(sokol-experiment LANGUAGES C)
+project(sokol-experiment LANGUAGES C CXX)
 
 include(FetchContent)
 
@@ -27,7 +27,7 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/pr0g/upng.git
   GIT_TAG edb284b15fc3c37260d27182e4cf3a366c1734bf)
 
-set(IMGUI_STATIC ON)  
+set(IMGUI_STATIC ON)
 FetchContent_Declare(
   cimgui
   GIT_REPOSITORY https://github.com/cimgui/cimgui.git
