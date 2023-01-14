@@ -40,6 +40,7 @@ bool g_mouse_down = false;
 mode_e g_mode = mode_standard;
 view_e g_view = view_orthographic;
 as_mat34f g_model_transform = {0};
+bool g_affine = false;
 
 static void update_movement(const float delta_time) {
   const float speed = delta_time * 4.0f;
@@ -311,7 +312,7 @@ int main(int argc, char** argv) {
                  "  frag_color = color;\n"
                  "}\n"});
 
-  sg_pipeline pip_projected = sg_make_pipeline(&(sg_pipeline_desc){
+  const sg_pipeline_desc pip_projected_desc = (sg_pipeline_desc){
     .shader = shader_projected,
     .layout =
       {.attrs =
@@ -325,7 +326,14 @@ int main(int argc, char** argv) {
         .write_enabled = true,
       },
     .cull_mode = SG_CULLMODE_BACK,
-    .face_winding = SG_FACEWINDING_CW});
+    .face_winding = SG_FACEWINDING_CW};
+
+  sg_pipeline pip_projected = sg_make_pipeline(&pip_projected_desc);
+
+  sg_pipeline_desc pip_projected_desc_affine = pip_projected_desc;
+  pip_projected_desc_affine.shader = shader_standard;
+  sg_pipeline pip_projected_affine =
+    sg_make_pipeline(&pip_projected_desc_affine);
 
   sg_pipeline pip_standard = sg_make_pipeline(&(sg_pipeline_desc){
     .shader = shader_standard,
@@ -569,6 +577,14 @@ int main(int argc, char** argv) {
 
     igCheckbox("Draw axes", &draw_axes);
 
+    if (g_mode != mode_projected) {
+      igBeginDisabled(true);
+    }
+    igCheckbox("Affine texture mapping", &g_affine);
+    if (g_mode != mode_projected) {
+      igEndDisabled();
+    }
+
     if (!pin_camera) {
       pinned_camera_state.camera = g_camera;
       pinned_camera_state.fov_degrees = fov_degrees;
@@ -696,7 +712,9 @@ int main(int argc, char** argv) {
 
     sg_bindings* bind =
       g_mode == mode_standard ? &bind_standard : &bind_projected;
-    sg_pipeline pip = g_mode == mode_standard ? pip_standard : pip_projected;
+    sg_pipeline pip = g_mode == mode_standard ? pip_standard
+                    : g_affine                ? pip_projected_affine
+                                              : pip_projected;
 
     sg_begin_default_pass(&pass_action, width, height);
 
