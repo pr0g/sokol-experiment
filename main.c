@@ -115,6 +115,7 @@ int main(int argc, char** argv) {
 
   SDL_GLContext* context = SDL_GL_CreateContext(window);
   SDL_GL_MakeCurrent(window, context);
+  SDL_GL_SetSwapInterval(1); // enable vsync
 
   const int version = gladLoadGL((GLADloadfunc)SDL_GL_GetProcAddress);
   if (version == 0) {
