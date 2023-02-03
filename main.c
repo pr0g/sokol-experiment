@@ -74,23 +74,6 @@ static void update_movement(const float delta_time) {
   }
 }
 
-// floating point comparison by Bruce Dawson
-// ref:
-// https://randomascii.wordpress.com/2012/02/25/comparing-floating-point-numbers-2012-edition/
-static bool float_near(
-  const float a, const float b, const float max_diff /*= FLT__EPSILON*/,
-  const float max_rel_diff /*= FLT__EPSILON*/) {
-  // check if the numbers are really close
-  // needed when comparing numbers near zero
-  const float diff = fabsf(a - b);
-  if (diff <= max_diff) {
-    return true;
-  }
-  const float largest = fmaxf(fabsf(a), fabsf(b));
-  // find relative difference
-  return diff <= largest * max_rel_diff;
-}
-
 int main(int argc, char** argv) {
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
     printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
@@ -551,9 +534,10 @@ int main(int argc, char** argv) {
     g_mode = (mode_e)mode_index;
 
     const bool projection_parameters_changed =
-      !float_near(fov_degrees, current_fov, FLT_EPSILON, FLT_EPSILON)
-      || !float_near(near_plane, current_near_plane, FLT_EPSILON, FLT_EPSILON)
-      || !float_near(far_plane, current_far_plane, FLT_EPSILON, FLT_EPSILON);
+      !as_float_near(fov_degrees, current_fov, FLT_EPSILON, FLT_EPSILON)
+      || !as_float_near(
+        near_plane, current_near_plane, FLT_EPSILON, FLT_EPSILON)
+      || !as_float_near(far_plane, current_far_plane, FLT_EPSILON, FLT_EPSILON);
     const bool mode_changed = g_mode != prev_mode;
 
     if (g_mode == mode_standard) {
