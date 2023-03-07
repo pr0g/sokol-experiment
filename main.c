@@ -4,6 +4,10 @@
 #include <glad/gl.h>
 #include <sokol_gfx.h>
 
+#include "shader/line.h"
+#include "shader/projected.h"
+#include "shader/standard.h"
+
 #include "imgui/imgui_impl_sdl.h"
 
 #define SOKOL_IMGUI_NO_SOKOL_APP
@@ -232,73 +236,12 @@ int main(int argc, char** argv) {
     as_mat44f mvp;
   } vs_params_t;
 
-  sg_shader shader_projected = sg_make_shader(&(sg_shader_desc){
-    .fs.images[0] = {.name = "the_texture", .image_type = SG_IMAGETYPE_2D},
-    .vs.uniform_blocks[0] =
-      {.size = sizeof(vs_params_t),
-       .uniforms = {[0] = {.name = "mvp", .type = SG_UNIFORMTYPE_MAT4}}},
-    .vs.source = "#version 330\n"
-                 "uniform mat4 mvp;\n"
-                 "layout(location=0) in vec4 position;\n"
-                 "layout(location=1) in vec2 uv0;\n"
-                 "layout(location=2) in float depth_recip0;\n"
-                 "out vec2 uv;\n"
-                 "out float depth_recip;\n"
-                 "void main() {\n"
-                 "  gl_Position = mvp * position;\n"
-                 "  uv = uv0 * depth_recip0;\n"
-                 "  depth_recip = depth_recip0;\n"
-                 "}\n",
-    .fs.source = "#version 330\n"
-                 "in vec2 uv;\n"
-                 "in float depth_recip;"
-                 "uniform sampler2D the_texture;\n"
-                 "out vec4 frag_color;\n"
-                 "void main() {\n"
-                 "  frag_color = texture(the_texture, uv / depth_recip);\n"
-                 "}\n"});
-
-  sg_shader shader_standard = sg_make_shader(&(sg_shader_desc){
-    .fs.images[0] = {.name = "the_texture", .image_type = SG_IMAGETYPE_2D},
-    .vs.uniform_blocks[0] =
-      {.size = sizeof(vs_params_t),
-       .uniforms = {[0] = {.name = "mvp", .type = SG_UNIFORMTYPE_MAT4}}},
-    .vs.source = "#version 330\n"
-                 "uniform mat4 mvp;\n"
-                 "layout(location=0) in vec4 position;\n"
-                 "layout(location=1) in vec2 uv0;\n"
-                 "out vec2 uv;\n"
-                 "void main() {\n"
-                 "  gl_Position = mvp * position;\n"
-                 "  uv = uv0;\n"
-                 "}\n",
-    .fs.source = "#version 330\n"
-                 "in vec2 uv;\n"
-                 "uniform sampler2D the_texture;\n"
-                 "out vec4 frag_color;\n"
-                 "void main() {\n"
-                 "  frag_color = texture(the_texture, uv);\n"
-                 "}\n"});
-
-  sg_shader shader_line = sg_make_shader(&(sg_shader_desc){
-    .vs.uniform_blocks[0] =
-      {.size = sizeof(vs_params_t),
-       .uniforms = {[0] = {.name = "mvp", .type = SG_UNIFORMTYPE_MAT4}}},
-    .vs.source = "#version 330\n"
-                 "uniform mat4 mvp;\n"
-                 "layout(location=0) in vec4 position;\n"
-                 "layout(location=1) in vec4 color0;\n"
-                 "out vec4 color;\n"
-                 "void main() {\n"
-                 "  gl_Position = mvp * position;\n"
-                 "  color = color0;\n"
-                 "}\n",
-    .fs.source = "#version 330\n"
-                 "in vec4 color;\n"
-                 "out vec4 frag_color;\n"
-                 "void main() {\n"
-                 "  frag_color = color;\n"
-                 "}\n"});
+  const sg_shader shader_projected =
+    sg_make_shader(projected_shader_desc(sg_query_backend()));
+  const sg_shader shader_standard =
+    sg_make_shader(standard_shader_desc(sg_query_backend()));
+  const sg_shader shader_line =
+    sg_make_shader(line_shader_desc(sg_query_backend()));
 
   const sg_pipeline_desc pip_projected_desc = (sg_pipeline_desc){
     .shader = shader_projected,
