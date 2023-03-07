@@ -1,0 +1,6 @@
+commands used to compiler shaders
+(see https://github.com/floooh/sokol-tools/blob/master/docs/sokol-shdc.md)
+
+./sokol-shdc --input <path/to>/sokol-experiment/shader/projected.glsl --output projected.h --slang glsl330:hlsl5
+./sokol-shdc --input <path/to>/sokol-experiment/shader/standard.glsl --output standard.h --slang glsl330:hlsl5
+./sokol-shdc --input <path/to>/sokol-experiment/shader/line.glsl --output line.h --slang glsl330:hlsl5
