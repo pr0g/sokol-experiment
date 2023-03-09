@@ -356,8 +356,6 @@ int main(int argc, char** argv) {
     const double delta_time = (double)(current_counter - previous_counter)
                             / (double)SDL_GetPerformanceFrequency();
     previous_counter = current_counter;
-
-    mode_e current_mode = g_mode;
     for (SDL_Event current_event; SDL_PollEvent(&current_event) != 0;) {
       ImGui_ImplSDL2_ProcessEvent(&current_event);
       if (igGetIO()->WantCaptureMouse) {
@@ -425,16 +423,6 @@ int main(int argc, char** argv) {
 
     update_movement((float)delta_time);
 
-    const as_mat34f model = g_mode == mode_standard
-                            ? g_model_transform
-                            : as_mat34f_translation_from_vec3f((as_vec3f){0});
-    const as_mat44f view = as_mat44f_from_mat34f_v(camera_view(&g_camera));
-    const as_mat44f view_model =
-      as_mat44f_mul_mat44f_v(view, as_mat44f_from_mat34f(&model));
-    const as_mat44f orthographic_projection =
-      as_mat44f_orthographic_projection_depth_minus_one_to_one_lh(
-        -1.0f, 1.0f, -1.0f, 1.0f, 0.01f, 100.0f);
-
     ImGui_ImplSDL2_NewFrame();
     simgui_new_frame(&(simgui_frame_desc_t){
       .width = width,
@@ -455,33 +443,18 @@ int main(int argc, char** argv) {
         (float)width / (float)height, as_radians_from_degrees(fov_degrees),
         near_plane, far_plane);
 
-    vs_params_lines.mvp = as_mat44f_transpose_v(
-      g_mode == mode_standard
-        ? as_mat44f_mul_mat44f(&perspective_projection, &view)
-      : g_view == view_orthographic
-        ? as_mat44f_mul_mat44f(&orthographic_projection, &view)
-        : as_mat44f_mul_mat44f(&perspective_projection_projected_mode, &view));
-
-    vs_params_model.mvp = as_mat44f_transpose_v(
-      g_mode == mode_standard
-        ? as_mat44f_mul_mat44f(&perspective_projection, &view_model)
-      : g_view == view_orthographic
-        ? as_mat44f_mul_mat44f(&orthographic_projection, &view_model)
-        : as_mat44f_mul_mat44f(
-          &perspective_projection_projected_mode, &view_model));
-
     mode_e prev_mode = g_mode;
     int mode_index = (int)g_mode;
     const char* mode_names[] = {"Standard", "Projected"};
     igCombo_Str_arr("Mode", &mode_index, mode_names, 2, 2);
     g_mode = (mode_e)mode_index;
+    const bool mode_changed = g_mode != prev_mode;
 
     const bool projection_parameters_changed =
       !as_float_near(fov_degrees, current_fov, FLT_EPSILON, FLT_EPSILON)
       || !as_float_near(
         near_plane, current_near_plane, FLT_EPSILON, FLT_EPSILON)
       || !as_float_near(far_plane, current_far_plane, FLT_EPSILON, FLT_EPSILON);
-    const bool mode_changed = g_mode != prev_mode;
 
     if (g_mode == mode_standard) {
       igBeginDisabled(true);
@@ -638,6 +611,31 @@ int main(int argc, char** argv) {
         }
       }
     }
+
+    const as_mat34f model = g_mode == mode_standard
+                            ? g_model_transform
+                            : as_mat34f_translation_from_vec3f((as_vec3f){0});
+    const as_mat44f view = as_mat44f_from_mat34f_v(camera_view(&g_camera));
+    const as_mat44f view_model =
+      as_mat44f_mul_mat44f_v(view, as_mat44f_from_mat34f(&model));
+    const as_mat44f orthographic_projection =
+      as_mat44f_orthographic_projection_depth_minus_one_to_one_lh(
+        -1.0f, 1.0f, -1.0f, 1.0f, 0.01f, 100.0f);
+
+    vs_params_lines.mvp = as_mat44f_transpose_v(
+      g_mode == mode_standard
+        ? as_mat44f_mul_mat44f(&perspective_projection, &view)
+      : g_view == view_orthographic
+        ? as_mat44f_mul_mat44f(&orthographic_projection, &view)
+        : as_mat44f_mul_mat44f(&perspective_projection_projected_mode, &view));
+
+    vs_params_model.mvp = as_mat44f_transpose_v(
+      g_mode == mode_standard
+        ? as_mat44f_mul_mat44f(&perspective_projection, &view_model)
+      : g_view == view_orthographic
+        ? as_mat44f_mul_mat44f(&orthographic_projection, &view_model)
+        : as_mat44f_mul_mat44f(
+          &perspective_projection_projected_mode, &view_model));
 
     sg_bindings* bind =
       g_mode == mode_standard ? &bind_standard : &bind_projected;
