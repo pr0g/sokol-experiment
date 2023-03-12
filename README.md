@@ -2,7 +2,9 @@
 
 An experimental project to learn more about [sokol](https://github.com/floooh/sokol) by [Andre Weissflog (floooh)](https://github.com/floooh).
 
-Initial sample using SDL2 with OpenGL (based on [sokol_gfx sample](https://github.com/floooh/sokol#sokol_gfxh)).
+The demo uses SDL2 and supports both OpenGL and DirectX backends (these are selected at configure time by passing either `-DSOKOL_EXPERIMENT_GL` or `-DSOKOL_EXPERIMENT_D3D`).
+
+The skeleton of the application is based on the [sokol_gfx sample](https://github.com/floooh/sokol#sokol_gfxh). DirectX backends are based on examples from [sokol-samples](https://github.com/floooh/sokol-samples) (see [d3d11entry.c](https://github.com/floooh/sokol-samples/blob/master/d3d11/d3d11entry.c)) and the Dear ImGui SDL2 DirectX 11 sample (see [example_sdl2_directx11](https://github.com/ocornut/imgui/blob/master/examples/example_sdl2_directx11/main.cpp)).
 
 ## Update
 
@@ -28,6 +30,7 @@ This project has grown into a mini prototype to help visualize perspective proje
 - View - Switch between `perspective` and `orthographic` projections while in `projected` mode. Default is `orthographic`.
 - Pin camera - Pin the current camera to move and visualize the view frustum in `standard` mode.
 - Draw axes - Draw the world space coordinate axes (X/Y/Z) for reference.
+- Affine texture mapping - Disable perspective correct texture mapping when in `projected` mode.
 
 ## Building
 
@@ -37,7 +40,7 @@ You'll need the normal stuff like CMake, a compiler (e.g. Visual Studio/MSVC, GC
 
 ### Python
 
-When trying to configure the repo initially, you may hit this error:
+When trying to configure the repo initially (is using OpenGL), you may hit this error:
 
 ```bash
 CMake Error at C:/Program Files/CMake/share/cmake-3.25/Modules/FindPackageHandleStandardArgs.cmake:230 (message):
@@ -48,7 +51,7 @@ Call Stack (most recent call first):
   build/_deps/glad-src/cmake/CMakeLists.txt:44 (find_package)
 ```
 
-This is most likely because Python can't be found on your system. You'll need to go ahead and [download]((https://www.python.org/downloads/)) it first.
+This is most likely because Python (a dependency of Glad) can't be found on your system. You'll need to go ahead and [download]((https://www.python.org/downloads/)) it first.
 
 If you configure again, you should then hopefully see something that looks like this...
 
@@ -69,25 +72,48 @@ Once that's installed, building the project should work as expected.
 
 ### Windows
 
-To ensure the MSVC compiler (and programs such as Ninja) are found correctly, it's best to run the Visual Studio Developer Command Prompt (you can find this in All Programs usually). If you'd rather use a different terminal such as [cmder](https://cmder.app/) or [Microsoft Terminal](https://apps.microsoft.com/store/detail/windows-terminal/9N0DX20HK701?hl=en-gb&gl=gb) then ensure you run `VsDevCmd.bat` which sets the Visual Studio related environment variables (essentially what happens when launching the Visual Studio Developer Command Prompt). It is located here `Program Files\Microsoft Visual Studio\Version\Common7\Tools` or `Program Files (x86)\Microsoft Visual Studio\Version\Common7\Tools`.
+To ensure the MSVC compiler (and programs such as Ninja) are found correctly, it's best to run the Visual Studio Developer Command Prompt (you can find this in All Programs usually). If you'd rather use a different terminal such as [cmder](https://cmder.app/) or [Microsoft Terminal](https://apps.microsoft.com/store/detail/windows-terminal/9N0DX20HK701?hl=en-gb&gl=gb) then ensure you run `VsDevCmd.bat` which sets the Visual Studio related environment variables (essentially what happens when launching the Visual Studio Developer Command Prompt).
 
-- `cmake -B build` (if you've done the above steps also specifying `-G Ninja` isn't a bad idea)
+It is located here:
+
+- `C:\Program Files\Microsoft Visual Studio\Version\Common7\Tools`  
+
+or here:
+
+- `C:\Program Files (x86)\Microsoft Visual Studio\Version\Common7\Tools`
+
+Next from the project root run either:
+
+- `cmake -B build -DSOKOL_EXPERIMENT_GL=ON`
+
+_or_
+
+- `cmake -B build -DSOKOL_EXPERIMENT_D3D=ON`
+
+Depending on which backend you'd like to try. (_If you've done the above steps also specifying `-G Ninja` isn't a bad idea_).
+
+Then enter:
+
 - `cmake --build build`
 
-then...
+...to compile, and finally...
 
 - `build\Debug\sokol-experiment.exe` (if using Visual Studio)
 - `build\sokol-experiment.exe` (if using Ninja)
 
+...to run.
+
 ### macOS
 
-- `cmake -B build -G Ninja` (`-G Ninja` is optional but will make things much faster).
+- `cmake -B build -G Ninja -DSOKOL_EXPERIMENT_GL=ON` (`-G Ninja` is optional but will make things much faster).
 - `cmake --build build`
 
 then...
 
 `./build/sokol-experiment`
 
+...to run.
+
 ### Linux
 
-Untested, but should be roughly the same as above.
+Untested, but should be roughly the same as what is listed for macOS above.
