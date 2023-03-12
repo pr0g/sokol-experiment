@@ -11,6 +11,8 @@
 #include <SDL_syswm.h>
 #include <as-ops.h>
 
+#include "imgui/imgui_impl_sdl.h"
+
 ID3D11Device* g_d3d_device = NULL;
 ID3D11DeviceContext* g_d3d_device_context = NULL;
 IDXGISwapChain* g_swap_chain = NULL;
@@ -79,7 +81,7 @@ void se_present(SDL_Window* window) {
 }
 
 void se_deinit_backend() {
- cleanup_device_d3d();   
+  cleanup_device_d3d();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

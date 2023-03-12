@@ -8,6 +8,8 @@
 #include <as-ops.h>
 #include <glad/gl.h>
 
+#include "imgui/imgui_impl_sdl.h"
+
 SDL_GLContext* g_context = NULL;
 
 bool se_init_backend(SDL_Window* window) {
@@ -52,9 +54,8 @@ as_mat44f se_orthographic_projection(
 }
 
 void se_present(SDL_Window* window) {
-    SDL_GL_SwapWindow(window);
+  SDL_GL_SwapWindow(window);
 }
 
 void se_deinit_backend() {
-    
 }

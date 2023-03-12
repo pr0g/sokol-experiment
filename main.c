@@ -2,6 +2,7 @@
 
 #ifdef SOKOL_EXPERIMENT_GL
 #define SOKOL_GLCORE33
+#include <glad/gl.h>
 #elif SOKOL_EXPERIMENT_D3D
 #define SOKOL_D3D11
 #endif
@@ -20,7 +21,6 @@
 #include <util/sokol_imgui.h>
 
 #include <SDL.h>
-
 #include <as-ops.h>
 #include <float.h>
 
