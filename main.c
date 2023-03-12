@@ -1,8 +1,12 @@
 #define SOKOL_IMPL
+
+#ifdef SOKOL_EXPERIMENT_GL
+#define SOKOL_GLCORE33
+#elif SOKOL_EXPERIMENT_D3D
 #define SOKOL_D3D11
+#endif
+
 #define SOKOL_NO_DEPRECATED
-// #include <glad/gl.h>
-#define COBJMACROS
 #include <sokol_gfx.h>
 
 #include "shader/line.h"
@@ -16,7 +20,6 @@
 #include <util/sokol_imgui.h>
 
 #include <SDL.h>
-#include <SDL_syswm.h>
 
 #include <as-ops.h>
 #include <float.h>
@@ -25,6 +28,8 @@
 #include "other/camera.h"
 #include "other/frustum.h"
 #include "other/mesh.h"
+
+#include "sokol-sdl-graphics-backend.h"
 
 typedef enum movement_e {
   movement_up = 1 << 0,
@@ -81,37 +86,11 @@ static void update_movement(const float delta_time) {
   }
 }
 
-ID3D11Device* g_d3d_device = NULL;
-ID3D11DeviceContext* g_d3d_device_context = NULL;
-IDXGISwapChain* g_swap_chain = NULL;
-ID3D11RenderTargetView* g_render_target_view = NULL;
-ID3D11DepthStencilView* g_depth_stencil_view = NULL;
-
-bool create_device_d3d(HWND h_wnd);
-void cleanup_device_d3d(void);
-void create_render_target(void);
-void cleanup_render_target(void);
-void cleanup_depth_stencil(void);
-
-static const void* d3d11_render_target_view(void) {
-  return (const void*)g_render_target_view;
-}
-
-static const void* d3d11_depth_stencil_view(void) {
-  return (const void*)g_depth_stencil_view;
-}
-
 int main(int argc, char** argv) {
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
     printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
     return 1;
   }
-
-  // SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-  // SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-  // SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-  // SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
-  // SDL_GL_CONTEXT_PROFILE_CORE);
 
   const int width = 1024;
   const int height = 768;
@@ -124,25 +103,9 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  SDL_SysWMinfo wm_info;
-  SDL_VERSION(&wm_info.version);
-  SDL_GetWindowWMInfo(window, &wm_info);
-  HWND hwnd = (HWND)wm_info.info.win.window;
-
-  if (!create_device_d3d(hwnd)) {
-    cleanup_device_d3d();
+  if (!se_init_backend(window)) {
     return 1;
   }
-
-  // SDL_GLContext* context = SDL_GL_CreateContext(window);
-  // SDL_GL_MakeCurrent(window, context);
-  // SDL_GL_SetSwapInterval(1); // enable vsync
-
-  // const int version = gladLoadGL((GLADloadfunc)SDL_GL_GetProcAddress);
-  // if (version == 0) {
-  //   printf("Failed to initialize OpenGL context\n");
-  //   return 1;
-  // }
 
   model_t model = load_obj_mesh_with_png_texture(
     "assets/models/f22.obj", "assets/textures/f22.png");
@@ -173,20 +136,12 @@ int main(int argc, char** argv) {
   array_free(model.mesh.uvs);
   array_free(model.mesh.faces);
 
-  const sg_desc desc = (sg_desc){
-    .context = (sg_context_desc){
-      .d3d11 = {
-        .device = g_d3d_device,
-        .device_context = g_d3d_device_context,
-        .render_target_view_cb = d3d11_render_target_view,
-        .depth_stencil_view_cb = d3d11_depth_stencil_view}}};
-
   // setup sokol_gfx
+  const sg_desc desc = se_create_desc();
   sg_setup(&desc);
   simgui_setup(&(simgui_desc_t){.ini_filename = "imgui.ini"});
 
-  // ImGui_ImplSDL2_InitForOpenGL(window, context);
-  ImGui_ImplSDL2_InitForD3D(window);
+  se_init_imgui(window);
 
   g_model_transform = as_mat34f_translation_from_vec3f((as_vec3f){.z = 5.0f});
 
@@ -194,13 +149,8 @@ int main(int argc, char** argv) {
   float near_plane = 2.0f;
   float far_plane = 10.0f;
 
-  // const as_mat44f perspective_projection_projected_mode =
-  //   as_mat44f_perspective_projection_depth_minus_one_to_one_lh(
-  //     (float)width / (float)height, as_radians_from_degrees(60.0f), 0.01f,
-  //     100.0f);
-
   const as_mat44f perspective_projection_projected_mode =
-    as_mat44f_perspective_projection_depth_zero_to_one_lh(
+    se_perspective_projection(
       (float)width / (float)height, as_radians_from_degrees(60.0f), 0.01f,
       100.0f);
 
@@ -487,15 +437,9 @@ int main(int argc, char** argv) {
     igSliderFloat("Near plane", &near_plane, 0.01f, 9.9f, "%.3f", 0);
     igSliderFloat("Far plane", &far_plane, 10.0f, 1000.0f, "%.3f", 0);
 
-    // const as_mat44f perspective_projection =
-    //   as_mat44f_perspective_projection_depth_minus_one_to_one_lh(
-    //     (float)width / (float)height, as_radians_from_degrees(fov_degrees),
-    //     near_plane, far_plane);
-
-    const as_mat44f perspective_projection =
-      as_mat44f_perspective_projection_depth_zero_to_one_lh(
-        (float)width / (float)height, as_radians_from_degrees(fov_degrees),
-        near_plane, far_plane);
+    const as_mat44f perspective_projection = se_perspective_projection(
+      (float)width / (float)height, as_radians_from_degrees(fov_degrees),
+      near_plane, far_plane);
 
     mode_e prev_mode = g_mode;
     int mode_index = (int)g_mode;
@@ -614,14 +558,8 @@ int main(int argc, char** argv) {
         sg_destroy_buffer(projected_vertex_buffer);
         sg_destroy_buffer(vertex_depth_recip_buffer);
 
-        // const as_mat44f pinned_perspective_projection =
-        //   as_mat44f_perspective_projection_depth_minus_one_to_one_lh(
-        //     (float)width / (float)height,
-        //     as_radians_from_degrees(pinned_camera_state.fov_degrees),
-        //     pinned_camera_state.near_plane, pinned_camera_state.far_plane);
-
         const as_mat44f pinned_perspective_projection =
-          as_mat44f_perspective_projection_depth_zero_to_one_lh(
+          se_perspective_projection(
             (float)width / (float)height,
             as_radians_from_degrees(pinned_camera_state.fov_degrees),
             pinned_camera_state.near_plane, pinned_camera_state.far_plane);
@@ -679,13 +617,8 @@ int main(int argc, char** argv) {
     const as_mat44f view = as_mat44f_from_mat34f_v(camera_view(&g_camera));
     const as_mat44f view_model =
       as_mat44f_mul_mat44f_v(view, as_mat44f_from_mat34f(&model));
-    // const as_mat44f orthographic_projection =
-    //   as_mat44f_orthographic_projection_depth_minus_one_to_one_lh(
-    //     -1.0f, 1.0f, -1.0f, 1.0f, 0.01f, 100.0f);
-
     const as_mat44f orthographic_projection =
-      as_mat44f_orthographic_projection_depth_zero_to_one_lh(
-        -1.0f, 1.0f, -1.0f, 1.0f, 0.01f, 100.0f);
+      se_orthographic_projection(-1.0f, 1.0f, -1.0f, 1.0f, 0.01f, 100.0f);
 
     vs_params_lines.mvp = as_mat44f_transpose_v(
       g_mode == mode_standard
@@ -735,8 +668,7 @@ int main(int argc, char** argv) {
     sg_end_pass();
     sg_commit();
 
-    // SDL_GL_SwapWindow(window);
-    IDXGISwapChain_Present(g_swap_chain, 1, 0);
+    se_present(window);
   }
 
   sg_destroy_buffer(line_buffer);
@@ -765,101 +697,10 @@ int main(int argc, char** argv) {
   simgui_shutdown();
   sg_shutdown();
 
-  cleanup_device_d3d();
+  se_deinit_backend();
 
   SDL_DestroyWindow(window);
   SDL_Quit();
 
   return 0;
-}
-
-bool create_device_d3d(HWND h_wnd) {
-  DXGI_SWAP_CHAIN_DESC sd = {0};
-  sd.BufferCount = 1;
-  sd.BufferDesc.Width = 1024;
-  sd.BufferDesc.Height = 768;
-  sd.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-  sd.BufferDesc.RefreshRate.Numerator = 60;
-  sd.BufferDesc.RefreshRate.Denominator = 1;
-  sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-  sd.OutputWindow = h_wnd;
-  sd.SampleDesc.Count = 4;
-  sd.SampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN;
-  sd.Windowed = TRUE;
-  sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-
-  UINT create_device_flags = D3D11_CREATE_DEVICE_SINGLETHREADED;
-  D3D_FEATURE_LEVEL feature_level;
-
-  if (
-    D3D11CreateDeviceAndSwapChain(
-      NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, create_device_flags, NULL, 0,
-      D3D11_SDK_VERSION, &sd, &g_swap_chain, &g_d3d_device, &feature_level,
-      &g_d3d_device_context)
-    != S_OK) {
-    return false;
-  }
-
-  create_render_target();
-  return true;
-}
-
-void cleanup_device_d3d(void) {
-  cleanup_depth_stencil();
-  cleanup_render_target();
-  if (g_swap_chain) {
-    IDXGISwapChain_Release(g_swap_chain);
-    g_swap_chain = NULL;
-  }
-  if (g_d3d_device_context) {
-    ID3D11DeviceContext_Release(g_d3d_device_context);
-    g_d3d_device_context = NULL;
-  }
-  if (g_d3d_device) {
-    ID3D11Device_Release(g_d3d_device);
-    g_d3d_device = NULL;
-  }
-}
-
-void create_render_target(void) {
-  ID3D11Texture2D* back_buffer = NULL;
-  IDXGISwapChain_GetBuffer(
-    g_swap_chain, 0, &IID_ID3D11Texture2D, (LPVOID*)&back_buffer);
-  ID3D11Device_CreateRenderTargetView(
-    g_d3d_device, (ID3D11Resource*)back_buffer, NULL, &g_render_target_view);
-  ID3D11Texture2D_Release(back_buffer);
-
-  D3D11_TEXTURE2D_DESC ds_desc = {
-    .Width = 1024,
-    .Height = 768,
-    .MipLevels = 1,
-    .ArraySize = 1,
-    .Format = DXGI_FORMAT_D24_UNORM_S8_UINT,
-    .SampleDesc = {.Count = 4, .Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN},
-    .Usage = D3D11_USAGE_DEFAULT,
-    .BindFlags = D3D11_BIND_DEPTH_STENCIL,
-  };
-  ID3D11Texture2D* depth_stencil_buffer = NULL;
-  ID3D11Device_CreateTexture2D(
-    g_d3d_device, &ds_desc, NULL, &depth_stencil_buffer);
-  D3D11_DEPTH_STENCIL_VIEW_DESC dsv_desc = {
-    .Format = ds_desc.Format, .ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS};
-  ID3D11Device_CreateDepthStencilView(
-    g_d3d_device, (ID3D11Resource*)depth_stencil_buffer, &dsv_desc,
-    &g_depth_stencil_view);
-  ID3D11Texture2D_Release(depth_stencil_buffer);
-}
-
-void cleanup_render_target(void) {
-  if (g_render_target_view) {
-    ID3D11RenderTargetView_Release(g_render_target_view);
-    g_render_target_view = NULL;
-  }
-}
-
-void cleanup_depth_stencil(void) {
-  if (g_depth_stencil_view) {
-    ID3D11DepthStencilView_Release(g_depth_stencil_view);
-    g_depth_stencil_view = NULL;
-  }
 }

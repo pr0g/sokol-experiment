@@ -35,17 +35,26 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(glad SDL2 as-c-math sokol upng cimgui)
 
-list(APPEND CMAKE_MODULE_PATH ${glad_SOURCE_DIR})
-
-glad_add_library(glad_gl_core_33 REPRODUCIBLE API gl:core=3.3)
-
 add_executable(${PROJECT_NAME})
 target_sources(
   ${PROJECT_NAME} PRIVATE main.c other/mesh.c other/triangle.c other/texture.c
                           other/array.c other/camera.c other/frustum.c imgui/imgui_impl_sdl.c)
 target_link_libraries(
-  ${PROJECT_NAME} PRIVATE SDL2::SDL2 SDL2::SDL2main as-c-math sokol
-                          glad_gl_core_33 upng cimgui dxguid.lib)
+  ${PROJECT_NAME} PRIVATE SDL2::SDL2 SDL2::SDL2main as-c-math sokol upng cimgui)
+target_compile_definitions(
+  ${PROJECT_NAME}
+  PRIVATE $<$<BOOL:${SOKOL_EXPERIMENT_GL}>:SOKOL_EXPERIMENT_GL>
+          $<$<BOOL:${SOKOL_EXPERIMENT_D3D}>:SOKOL_EXPERIMENT_D3D>)
+
+if (SOKOL_EXPERIMENT_GL)
+  list(APPEND CMAKE_MODULE_PATH ${glad_SOURCE_DIR})
+  glad_add_library(glad_gl_core_33 REPRODUCIBLE API gl:core=3.3)
+  target_link_libraries(${PROJECT_NAME} PRIVATE glad_gl_core_33)
+  target_sources(${PROJECT_NAME} PRIVATE sokol-sdl-graphics-backend-gl.c)
+elseif (SOKOL_EXPERIMENT_D3D)
+  target_link_libraries(${PROJECT_NAME} PRIVATE dxguid.lib)
+  target_sources(${PROJECT_NAME} PRIVATE sokol-sdl-graphics-backend-d3d.c)
+endif()
 
 if(WIN32)
   # copy the SDL2.dll to the same folder as the executable
