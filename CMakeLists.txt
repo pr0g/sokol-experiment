@@ -26,13 +26,12 @@ FetchContent_Declare(
   upng
   GIT_REPOSITORY https://github.com/pr0g/upng.git
   GIT_TAG edb284b15fc3c37260d27182e4cf3a366c1734bf)
-
-set(IMGUI_STATIC ON)
 FetchContent_Declare(
   cimgui
   GIT_REPOSITORY https://github.com/cimgui/cimgui.git
   GIT_TAG d159c2622d21d1e21ae6a5970d0a8391e0957496)
 
+option(IMGUI_STATIC "" ON)
 FetchContent_MakeAvailable(glad SDL2 as-c-math sokol upng cimgui)
 
 add_executable(${PROJECT_NAME})
