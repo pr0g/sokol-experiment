@@ -45,7 +45,7 @@ target_sources(
                           other/array.c other/camera.c other/frustum.c imgui/imgui_impl_sdl.c)
 target_link_libraries(
   ${PROJECT_NAME} PRIVATE SDL2::SDL2 SDL2::SDL2main as-c-math sokol
-                          glad_gl_core_33 upng cimgui)
+                          glad_gl_core_33 upng cimgui dxguid.lib)
 
 if(WIN32)
   # copy the SDL2.dll to the same folder as the executable
