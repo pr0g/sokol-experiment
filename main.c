@@ -7,6 +7,7 @@
 #define SOKOL_D3D11
 #endif
 
+#define SOKOL_EXTERNAL_GL_LOADER
 #define SOKOL_NO_DEPRECATED
 #include <sokol_gfx.h>
 

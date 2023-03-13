@@ -8,7 +8,7 @@ include(FetchContent)
 FetchContent_Declare(
   sokol
   GIT_REPOSITORY https://github.com/pr0g/sokol.git
-  GIT_TAG ca675e34f29667ceae522d58bb5b95cbc4db83f2)
+  GIT_TAG aa7713a1e2b228e2f012bd18d0e906bc6116b807)
 FetchContent_Declare(
   SDL2
   URL https://github.com/libsdl-org/SDL/releases/download/release-2.26.0/SDL2-2.26.0.tar.gz
